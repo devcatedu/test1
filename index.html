@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>귤냥이와 친구들 - 완전판 프로토타입 V5</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; user-select: none; -webkit-user-select: none; }
+        
+        body { 
+            background-color: #1a1a1a; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            width: 100vw; 
+            margin: 0; 
+            padding: 0;
+            overflow: hidden; 
+        }
+        
+        /* 750x1334 세로 비율 완벽 사수 장치 */
+        #game-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            max-width: calc(100vh * 750 / 1334);
+            max-height: calc(100vw * 1334 / 750);
+            aspect-ratio: 750 / 1334;
+            background: radial-gradient(circle, #fffef0 0%, #ffdca3 100%);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #fade-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; opacity: 0; pointer-events: none; z-index: 999;
+            transition: opacity 0.3s ease-in-out;
+        }
+
+        /* 사운드 제어 토글 스위치 (탑 레이어) */
+        #sound-toggle {
+            position: absolute;
+            top: 2%;
+            right: 4%;
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.9);
+            border: 3px solid #ff9800;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            transition: transform 0.15s;
+        }
+        #sound-toggle:active { transform: scale(0.9); }
+
+        /* 씬 프레임워크 (세이프존 안전 보장) */
+        .scene {
+            position: absolute;
+            top: 8%;
+            bottom: 8%;
+            width: 100%;
+            display: none;
+            flex-direction: column;
+            padding: 20px;
+            overflow: hidden;
+        }
+        .scene.active { display: flex; }
+
+        /* 타이틀 UI */
+        #scene-title { align-items: center; justify-content: center; }
+        .logo-area { text-align: center; margin-bottom: 40px; }
+        .logo-title { font-size: 34px; font-weight: 900; color: #ff6f00; text-shadow: 3px 3px 0px #fff; letter-spacing: -1px; }
+        .logo-sub { font-size: 16px; font-weight: bold; color: #795548; letter-spacing: 4px; margin-top: 5px; }
+        .login-box { width: 85%; display: flex; flex-direction: column; gap: 12px; margin-bottom: 30px; }
+        .login-box input { width: 100%; padding: 14px; border: 3px solid #ffcc80; border-radius: 12px; font-size: 16px; outline: none; text-align: center; background: rgba(255,255,255,0.9); }
+        .login-box input:focus { border-color: #ff9800; }
+        .btn-action { width: 85%; padding: 16px; font-size: 18px; font-weight: bold; color: #fff; border-radius: 16px; border: none; cursor: pointer; text-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.1s; }
+        #btn-join { background: #b0bec5; margin-bottom: 10px; pointer-events: none; opacity: 0.6; }
+        #btn-login { background: linear-gradient(135deg, #ff9800, #ff5722); box-shadow: 0 6px 16px rgba(255,152,0,0.4); }
+        #btn-login:active { transform: scale(0.97); }
+
+        /* 로비 */
+        .hud-user { display: flex; align-items: center; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 18px; border: 3px solid #ffb74d; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .hud-profile { width: 55px; height: 55px; background: #fff; border-radius: 12px; border: 2px solid #ffa726; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        .hud-profile svg { width: 100%; height: 100%; }
+        .hud-details { flex: 1; margin-left: 12px; }
+        .hud-name { font-size: 16px; font-weight: 800; color: #5d4037; }
+        .hud-ocp { font-size: 13px; color: #f57c00; font-weight: bold; margin-top: 3px; }
+        
+        .channel-container { display: flex; gap: 12px; margin-bottom: 20px; }
+        .btn-channel { flex: 1; padding: 20px; border-radius: 16px; border: none; font-size: 18px; font-weight: bold; color: #fff; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .btn-channel.beginner { background: linear-gradient(135deg, #81c784, #388e3c); }
+        .btn-channel.master { background: linear-gradient(135deg, #e57373, #d32f2f); }
+        .btn-lobby-util { background: #ffb74d; color: #fff; border: none; padding: 15px; border-radius: 12px; font-weight: bold; cursor: pointer; width: 100%; text-align: center; text-decoration: none; display: block; margin-bottom: 12px; font-size: 15px; }
+
+        .ranking-panel { flex: 1; background: rgba(255,255,255,0.85); border-radius: 18px; border: 2px solid #ffe0b2; padding: 15px; display: flex; flex-direction: column; }
+        .ranking-title { font-size: 15px; font-weight: bold; color: #795548; margin-bottom: 10px; display: flex; justify-content: space-between; border-bottom: 2px solid #ffe0b2; padding-bottom: 5px; }
+        .ranking-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .ranking-item { display: flex; justify-content: space-between; padding: 8px 12px; background: #fff; border-radius: 10px; font-size: 13px; font-weight: bold; }
+        .ranking-item.top-user { background: #fff3e0; border: 1px solid #ffb74d; }
+
+        /* 채널 대기방 */
+        .chat-panel { flex: 1; background: rgba(255,255,255,0.9); border-radius: 18px; border: 3px solid #ffcc80; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 20px; }
+        .chat-log { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .chat-bubble { font-size: 13px; padding: 8px 12px; border-radius: 10px; background: #ffe0b2; align-self: flex-start; max-width: 85%; line-height: 1.4; color: #5d4037; }
+        .chat-bubble.mine { background: #fff9c4; align-self: flex-end; }
+        .chat-input-row { display: flex; border-top: 2px solid #ffe0b2; padding: 8px; background: #fff; }
+        .chat-input-row input { flex: 1; padding: 12px; border: 1px solid #ffcc80; border-radius: 8px; font-size: 14px; outline: none; }
+        .chat-input-row button { padding: 0 16px; margin-left: 8px; border: none; background: #ff9800; color: #fff; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        /* 인게임 헤더 */
+        .ingame-header { position: relative; z-index: 100; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #fffef0; padding: 8px 12px; border-radius: 12px; border: 1.5px solid #ffcc80;}
+        .ingame-back { padding: 6px 12px; border-radius: 8px; border: none; background: #b0bec5; color: #fff; font-weight: bold; cursor: pointer; }
+        .ingame-moves { font-size: 16px; font-weight: 800; color: #d32f2f; }
+        
+        .timer-container { position: relative; z-index: 100; width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+        .timer-bar { width: 100%; height: 100%; background: linear-gradient(to right, #4caf50, #ffeb3b, #f44336); transition: width 0.1s linear; }
+
+        /* [개선 3] 대용량 고양이 캐릭터 보드 전용 대전 현황판 */
+        .battle-area { position: relative; z-index: 100; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; background: #fffef0; padding: 12px 10px; border-radius: 18px; border: 3px solid #ffb74d; gap: 8px; box-shadow: 0 6px 15px rgba(0,0,0,0.06); }
+        
+        .battle-char-node { width: 90px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+        .battle-char-node .char-view { 
+            width: 80px; 
+            height: 98px; 
+            background: linear-gradient(135deg, #ffffff 0%, #ffeb3b 150%); 
+            border-radius: 18px; 
+            border: 3px solid #ff9800; 
+            padding: 5px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .battle-char-node.opponent .char-view { 
+            border-color: #f48fb1; 
+            background: linear-gradient(135deg, #ffffff 0%, #f48fb1 150%);
+        }
+        
+        /* 쫀득하게 숨쉬는 물리 바운싱 모션 */
+        .battle-char-node .char-view svg { 
+            width: 100%; 
+            height: 100%; 
+            transform-origin: bottom center;
+            animation: cat-breathe 2.5s ease-in-out infinite; 
+        }
+        .battle-char-node.opponent .char-view svg { 
+            animation: cat-breathe 2.8s ease-in-out infinite; 
+        }
+        
+        @keyframes cat-breathe {
+            0%, 100% { transform: scaleY(1) scaleX(1) translateY(0); }
+            50% { transform: scaleY(0.93) scaleX(1.03) translateY(2.5px); }
+        }
+
+        .battle-char-node .char-name { font-size: 12px; font-weight: 800; color: #5d4037; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        
+        .battle-food-hub { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 0 4px; }
+        .food-icon { width: 44px; height: 44px; position: relative; animation: floatAnim 2s ease-in-out infinite; }
+        @keyframes floatAnim { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        
+        /* 100,000점 스펙 조건 레이아웃 */
+        .food-status-label { font-size: 11px; font-weight: 900; color: #e65100; margin-top: 3px; margin-bottom: 4px; text-align: center; line-height: 1.2; }
+        .food-score-display { font-size: 13px; font-weight: 800; color: #3e2723; margin-top: 2px; }
+        
+        .food-track { width: 100%; height: 14px; background: #f48fb1; border-radius: 7px; overflow: hidden; position: relative; border: 1.5px solid #d7ccc8; }
+        .food-gauge-fill { height: 100%; width: 50%; background: #ffb74d; transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1); border-right: 2px solid #fff; }
+
+        /* [개선 2] 보드 내 클리핑 처리하여 외부 노출 블록 완벽 가리기 */
+        #board-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 100%;
+            aspect-ratio: 1;
+            background: radial-gradient(circle, #8d6e63 0%, #4e342e 100%);
+            border-radius: 18px;
+            padding: 6px;
+            box-shadow: inset 0 6px 12px rgba(0,0,0,0.5), 0 8px 16px rgba(0,0,0,0.3);
+            touch-action: none;
+            overflow: hidden; /* 보드판을 벗어난 외곽 하늘 스폰 영역 완벽 절삭 */
+        }
+        .board-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            width: 100%;
+            height: 100%;
+            gap: 2px;
+        }
+        .grid-cell {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 6px;
+            position: relative;
+        }
+        
+        /* 중력 낙하 최적화용 가속 셋업 */
+        .block-unit {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0; left: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            cursor: grab;
+            background: transparent;
+            transform: translateY(0px);
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            will-change: transform;
+        }
+        .block-unit.selected { z-index: 90; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4)); }
+        .block-unit svg { width: 90%; height: 90%; pointer-events: none; }
+
+        @keyframes screen-shake {
+            0%, 100% { transform: translate(0, 0); }
+            20% { transform: translate(-3px, 2px); }
+            40% { transform: translate(3px, -1px); }
+            60% { transform: translate(-2px, -2px); }
+            80% { transform: translate(2px, 1px); }
+        }
+        .shake-active { animation: screen-shake 0.4s ease-in-out infinite; }
+
+        /* [개선 4] 관통 레이저 및 범위 폭쇄 특수 FX */
+        .laser-v-fx {
+            position: absolute;
+            width: 11.11%;
+            height: 100%;
+            top: 0;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,235,59,0.95) 50%, rgba(255,255,255,0) 100%);
+            box-shadow: 0 0 25px #ffa726, 0 0 45px #ff5722;
+            z-index: 99;
+            pointer-events: none;
+            animation: fadeLaserV 0.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+        @keyframes fadeLaserV {
+            0% { transform: scaleX(0.1); opacity: 1; }
+            100% { transform: scaleX(2.0); opacity: 0; }
+        }
+
+        .laser-h-fx {
+            position: absolute;
+            height: 11.11%;
+            width: 100%;
+            left: 0;
+            background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,112,67,0.95) 50%, rgba(255,255,255,0) 100%);
+            box-shadow: 0 0 25px #ff7043, 0 0 45px #d84315;
+            z-index: 99;
+            pointer-events: none;
+            animation: fadeLaserH 0.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+        @keyframes fadeLaserH {
+            0% { transform: scaleY(0.1); opacity: 1; }
+            100% { transform: scaleY(2.0); opacity: 0; }
+        }
+
+        .shockwave-fx {
+            position: absolute;
+            border: 4px solid #f44336;
+            border-radius: 50%;
+            box-shadow: 0 0 30px #ff3d00, inset 0 0 20px #ff3d00;
+            z-index: 99;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            animation: shockwaveAnim 0.45s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+        }
+        @keyframes shockwaveAnim {
+            0% { transform: scale(0.1); opacity: 1; background: rgba(244,67,54,0.4); }
+            100% { transform: scale(2.6); opacity: 0; background: rgba(244,67,54,0); }
+        }
+
+        .fx-burst {
+            position: absolute; width: 100%; height: 100%;
+            background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,235,59,0.8) 50%, rgba(255,235,59,0) 80%);
+            border-radius: 50%; pointer-events: none; z-index: 80;
+            animation: burstAnim 0.3s ease-out forwards;
+        }
+        @keyframes burstAnim {
+            0% { transform: scale(0.3); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+
+        /* 결과 화면 및 분기별 대응 버튼 */
+        #scene-result { align-items: center; justify-content: center; text-align: center; }
+        .result-title { font-size: 32px; font-weight: 900; color: #ff5722; margin-bottom: 10px; }
+        .result-subtitle { font-size: 18px; font-weight: bold; color: #795548; margin-bottom: 40px; }
+        .score-row { font-size: 20px; font-weight: bold; color: #37474f; margin-bottom: 25px; }
+        
+        .result-btn-row { display: flex; flex-direction: column; width: 80%; gap: 12px; align-items: center; }
+        .btn-result-choice { width: 100%; padding: 16px; border-radius: 16px; border: none; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.1s; }
+        .btn-result-choice:active { transform: scale(0.97); }
+        .btn-result-choice.retry { background: linear-gradient(135deg, #4caf50, #2e7d32); }
+        .btn-result-choice.lobby { background: linear-gradient(135deg, #ffa726, #f57c00); }
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div id="fade-overlay"></div>
+
+    <!-- 사운드 토글 온/오프 탑 단추 -->
+    <div id="sound-toggle" onclick="toggleMuteStatus()">🔊</div>
+
+    <!-- [1] 타이틀 씬 -->
+    <div id="scene-title" class="scene active">
+        <div class="logo-area">
+            <div class="logo-title">귤냥이와 친구들</div>
+            <div class="logo-sub">THE 3MATCH PUZZLE</div>
+        </div>
+        
+        <div class="login-box">
+            <input type="text" id="input-id" placeholder="ID 입력" oninput="validateLoginInputs()">
+            <input type="password" id="input-pw" placeholder="PW 입력" oninput="validateLoginInputs()">
+        </div>
+        
+        <button id="btn-join" class="btn-action">JOIN (비활성)</button>
+        <button id="btn-login" class="btn-action" onclick="tryLogin()" style="opacity: 0.5; pointer-events: none;">LOGIN</button>
+    </div>
+
+    <!-- [2] 로비 -->
+    <div id="scene-lobby01" class="scene">
+        <div class="hud-user">
+            <div class="hud-profile" id="user-profile-pic"></div>
+            <div class="hud-details">
+                <div class="hud-name" id="user-display-name">%이름표시%</div>
+                <div class="hud-ocp">OCP <span id="lobby-ocp-value">9,999,999</span></div>
+            </div>
+        </div>
+
+        <div class="channel-container">
+            <button class="btn-channel beginner" onclick="enterChannel('초급 채널')">초급 채널</button>
+            <button class="btn-channel master" onclick="enterChannel('중급 채널')">중급 채널</button>
+        </div>
+
+        <button class="btn-lobby-util" onclick="alert('인게임 상점 준비 중입니다.')">ITEM SHOP (상점)</button>
+        <button class="btn-lobby-util" style="background:#ff9800;" onclick="window.open('https://www.orangecat.co.kr/', '_blank')">귤냥이몰 방문</button>
+
+        <div class="ranking-panel">
+            <div class="ranking-title">
+                <span>실시간 랭킹</span>
+                <span style="font-size:11px; color:#a1887f;">최신 등록 우선</span>
+            </div>
+            <div class="ranking-list" id="ranking-list-box"></div>
+        </div>
+    </div>
+
+    <!-- [3] 채널 대기방 -->
+    <div id="scene-channel-lobby" class="scene">
+        <div class="hud-user">
+            <div class="hud-profile" id="channel-profile-pic"></div>
+            <div class="hud-details">
+                <div class="hud-name" id="channel-display-name">%이름표시%</div>
+                <div class="hud-ocp">OCP <span id="channel-ocp-value">9,999,999</span></div>
+            </div>
+            <button onclick="exitChannel()" style="background:#cfd8dc; color:#37474f; border:none; padding:8px 12px; border-radius:10px; font-weight:bold; cursor:pointer;">뒤로가기</button>
+        </div>
+
+        <h3 style="color:#795548; font-size:15px; margin-bottom:8px; font-weight:bold;">채널 멀티 플레이 대기실</h3>
+        
+        <div class="chat-panel">
+            <div class="chat-log" id="chat-box">
+                <div class="chat-bubble">시스템: 채널 로비에 입장했습니다. 대화를 나누며 매칭을 시작하세요.</div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" placeholder="메시지를 입력해 주세요..." onkeypress="handleChatEnter(event)">
+                <button onclick="sendChatMessage()">전송</button>
+            </div>
+        </div>
+
+        <button class="btn-action" style="background:#e53935; width:100%; box-shadow:0 6px 12px rgba(229,57,53,0.3);" onclick="goToInGame()">게임 시작 (인게임 진입)</button>
+    </div>
+
+    <!-- [4] 인게임 대결 씬 -->
+    <div id="scene-ingame" class="scene">
+        <div class="ingame-header">
+            <button class="ingame-back" onclick="forfeitGame()">기권</button>
+            <div class="ingame-moves" id="move-counter">MOVE 03/03</div>
+        </div>
+
+        <div class="timer-container">
+            <div class="timer-bar" id="game-timer-bar"></div>
+        </div>
+
+        <!-- [개선 3] 100000개 수집 대치 고양이 보드 카드형 현황판 -->
+        <div class="battle-area">
+            <div class="battle-char-node player">
+                <div class="char-view" id="player-char-svg"></div>
+                <div class="char-name" id="ingame-id-label">나</div>
+            </div>
+            
+            <div class="battle-food-hub">
+                <div class="food-icon" id="food-center-svg"></div>
+                <div class="food-status-label" id="food-advantage-text">밥알 100000개 선점 대결!</div>
+                <div class="food-score-display">
+                    <span id="player-grain-count">0</span> / 100000
+                </div>
+                <div class="food-track" style="margin-top: 5px;">
+                    <div class="food-gauge-fill" id="food-share-gauge"></div>
+                </div>
+            </div>
+
+            <div class="battle-char-node opponent">
+                <div class="char-view" id="opponent-char-svg"></div>
+                <div class="char-name">핑크냥</div>
+            </div>
+        </div>
+
+        <!-- 9x9 보드판 -->
+        <div id="board-wrapper">
+            <div class="board-grid" id="game-board"></div>
+        </div>
+    </div>
+
+    <!-- [5] 결과 및 정산 분기 씬 -->
+    <div id="scene-result" class="scene">
+        <div class="result-title" id="result-status">승리!</div>
+        <div class="result-subtitle" id="result-detail">밥알 100000개를 먼저 확보했습니다.</div>
+        <div class="score-row">최종 획득 점수: <span id="final-score-val">0</span> 점</div>
+        
+        <div class="result-btn-row">
+            <button class="btn-result-choice retry" onclick="goToInGame()">다시하기 (즉시 재도전)</button>
+            <button class="btn-result-choice lobby" onclick="returnToLobbyFromResults()">로비로 돌아가기</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // =======================================================
+    // ============ [개선 4] Web Audio API 사운드 엔진 ============
+    // =======================================================
+    class SynthSoundEngine {
+        constructor() {
+            this.audioCtx = null;
+            this.bgmTimer = null;
+            this.isMuted = false;
+            this.noteSequence = [
+                261.63, 329.63, 392.00, 440.00, 
+                392.00, 329.63, 261.63, 293.66,
+                329.63, 329.63, 293.66, 293.66,
+                261.63, 329.63, 392.00, 523.25
+            ];
+            this.bgmIndex = 0;
+        }
+
+        initContext() {
+            if (this.audioCtx) return;
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (AudioContextClass) {
+                this.audioCtx = new AudioContextClass();
+            }
+        }
+
+        playSFX(type) {
+            this.initContext();
+            if (this.isMuted || !this.audioCtx) return;
+            if (this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+
+            const now = this.audioCtx.currentTime;
+
+            if (type === 'swap') {
+                // 부드럽게 마찰되는 복구/스왑 사운드
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(260, now);
+                osc.frequency.exponentialRampToValueAtTime(520, now + 0.12);
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } 
+            else if (type === 'match') {
+                // 상쾌한 방울 튀는 소리
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } 
+            else if (type === 'item_trigger') {
+                // 기가막힌 레이저 사출격발음
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(1400, now);
+                osc.frequency.linearRampToValueAtTime(120, now + 0.35);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.linearRampToValueAtTime(0.001, now + 0.35);
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } 
+            else if (type === 'combo') {
+                // 화려한 콤보 연속 기교 알페지오
+                const freqs = [392.00, 493.88, 587.33, 783.99]; // G 계열
+                freqs.forEach((freq, idx) => {
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+                    gain.gain.setValueAtTime(0.1, now + idx * 0.04);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.04 + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.audioCtx.destination);
+                    osc.start(now + idx * 0.04);
+                    osc.stop(now + idx * 0.04 + 0.09);
+                });
+            } 
+            else if (type === 'win') {
+                // 희망차고 압도적인 C-Major 승리 코드
+                const freqs = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99];
+                freqs.forEach((freq, idx) => {
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+                    gain.gain.setValueAtTime(0.15, now + idx * 0.06);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.audioCtx.destination);
+                    osc.start(now + idx * 0.06);
+                    osc.stop(now + idx * 0.06 + 0.5);
+                });
+            } 
+            else if (type === 'lose') {
+                // 다운힐 글라이딩 우울 사운드
+                const osc = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, now);
+                osc.frequency.linearRampToValueAtTime(65, now + 0.7);
+                gain.gain.setValueAtTime(0.15, now);
+                gain.gain.linearRampToValueAtTime(0.001, now + 0.7);
+                osc.connect(gain);
+                gain.connect(this.audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.7);
+            }
+        }
+
+        startBGM() {
+            this.initContext();
+            if (this.isMuted || !this.audioCtx) return;
+            if (this.audioCtx.state === 'suspended') {
+                this.audioCtx.resume();
+            }
+            if (this.bgmTimer) return;
+
+            const playNote = () => {
+                if (this.isMuted || !this.audioCtx) return;
+                const now = this.audioCtx.currentTime;
+                const freq = this.noteSequence[this.bgmIndex];
+
+                const osc = this.audioCtx.createOscillator();
+                const bass = this.audioCtx.createOscillator();
+                const gain = this.audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now);
+
+                bass.type = 'triangle';
+                bass.frequency.setValueAtTime(freq / 2, now); // 포근한 한 옥타브 아래 베이스 탑재
+
+                gain.gain.setValueAtTime(0.04, now); // 평화로운 배경 사운드용 4% 저볼륨 보장
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+
+                osc.connect(gain);
+                bass.connect(gain);
+                gain.connect(this.audioCtx.destination);
+
+                osc.start(now);
+                bass.start(now);
+                osc.stop(now + 0.3);
+                bass.stop(now + 0.3);
+
+                this.bgmIndex = (this.bgmIndex + 1) % this.noteSequence.length;
+            };
+
+            this.bgmTimer = setInterval(playNote, 320); // 일정한 템포 루프 가속화
+        }
+
+        stopBGM() {
+            if (this.bgmTimer) {
+                clearInterval(this.bgmTimer);
+                this.bgmTimer = null;
+            }
+        }
+
+        toggleMute() {
+            this.isMuted = !this.isMuted;
+            if (this.isMuted) {
+                this.stopBGM();
+            } else {
+                this.startBGM();
+            }
+            return this.isMuted;
+        }
+    }
+
+    const soundCtrl = new SynthSoundEngine();
+
+    function toggleMuteStatus() {
+        const isMutedNow = soundCtrl.toggleMute();
+        const icon = document.getElementById('sound-toggle');
+        icon.innerText = isMutedNow ? "🔇" : "🔊";
+    }
+
+    // --- 글로벌 자산 DB: 고품질 배경투명 얼굴형 SVG 셋업 (콤팩트 귀환화) ---
+    const CAT_SVGs = {
+        // [수정사항 1] 블록은 기획안 사양대로 깔끔하게 '얼굴 형태만' 완벽 조율
+        1: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="55" rx="42" ry="36" fill="#ffa726"/>
+              <path d="M15 30 Q 8 5 30 18 Q 50 30 15 30" fill="#fb8c00"/>
+              <path d="M85 30 Q 92 5 70 18 Q 50 30 85 30" fill="#fb8c00"/>
+              <ellipse cx="50" cy="58" rx="34" ry="28" fill="#ffffff"/>
+              <circle cx="36" cy="52" r="6" fill="#37474F"/>
+              <circle cx="64" cy="52" r="6" fill="#37474F"/>
+              <circle cx="34" cy="50" r="2" fill="#ffffff"/>
+              <circle cx="62" cy="50" r="2" fill="#ffffff"/>
+              <polygon points="50,58 46,54 54,54" fill="#ff5722"/>
+              <path d="M46 64 Q 50 68 54 64" stroke="#ff5722" stroke-width="3" fill="none"/>
+              <ellipse cx="26" cy="58" rx="5" ry="3" fill="#ff8a80" opacity="0.6"/>
+              <ellipse cx="74" cy="58" rx="5" ry="3" fill="#ff8a80" opacity="0.6"/>
+            </svg>`, // 귤냥이 (Orange)
+        2: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="55" rx="42" ry="36" fill="#f48fb1"/>
+              <path d="M15 30 Q 8 5 30 18 C 40 25 30 30 15 30" fill="#ec407a"/>
+              <path d="M85 30 Q 92 5 70 18 C 60 25 70 30 85 30" fill="#ec407a"/>
+              <ellipse cx="50" cy="58" rx="34" ry="28" fill="#ffffff"/>
+              <circle cx="36" cy="52" r="6" fill="#37474F"/>
+              <circle cx="64" cy="52" r="6" fill="#37474F"/>
+              <polygon points="50,58 46,54 54,54" fill="#ff4081"/>
+              <path d="M45 64 Q 50 69 55 64" stroke="#ff4081" stroke-width="3" fill="none"/>
+              <ellipse cx="26" cy="58" rx="5" ry="3" fill="#ff4081" opacity="0.5"/>
+              <ellipse cx="74" cy="58" rx="5" ry="3" fill="#ff4081" opacity="0.5"/>
+            </svg>`, // 핑크냥이 (Pink)
+        3: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="55" rx="42" ry="36" fill="#37474f"/>
+              <path d="M15 30 Q 8 5 30 18" fill="#263238" stroke="#37474f" stroke-width="6"/>
+              <path d="M85 30 Q 92 5 70 18" fill="#263238" stroke="#37474f" stroke-width="6"/>
+              <ellipse cx="50" cy="58" rx="34" ry="28" fill="#546e7a"/>
+              <circle cx="36" cy="52" r="7" fill="#ffeb3b"/>
+              <circle cx="64" cy="52" r="7" fill="#ffeb3b"/>
+              <polygon points="50,58 46,54 54,54" fill="#212121"/>
+              <path d="M46 65 Q 50 69 54 65" stroke="#212121" stroke-width="3" fill="none"/>
+            </svg>`, // 검은냥이 (Black)
+        4: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="55" rx="42" ry="36" fill="#e53935"/>
+              <path d="M46 16 Q 50 2 55 18" stroke="#8d6e63" stroke-width="5" fill="none"/>
+              <path d="M15 30 Q 8 5 30 18" fill="#c62828"/>
+              <path d="M85 30 Q 92 5 70 18" fill="#c62828"/>
+              <ellipse cx="50" cy="58" rx="34" ry="28" fill="#ffffff"/>
+              <circle cx="36" cy="52" r="6" fill="#37474F"/>
+              <circle cx="64" cy="52" r="6" fill="#37474F"/>
+              <polygon points="50,58 46,54 54,54" fill="#c62828"/>
+            </svg>`, // 사과냥이 (Apple - Red)
+        5: `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="50" cy="55" rx="42" ry="36" fill="#4caf50"/>
+              <path d="M50 18 Q 45 30 55 30" fill="none" stroke="#2e7d32" stroke-width="3"/>
+              <path d="M15 30 Q 8 5 30 18" fill="#2e7d32"/>
+              <path d="M85 30 Q 92 5 70 18" fill="#2e7d32"/>
+              <ellipse cx="50" cy="58" rx="34" ry="28" fill="#ffffff"/>
+              <circle cx="36" cy="52" r="5" fill="#37474F"/>
+              <circle cx="64" cy="52" r="5" fill="#37474F"/>
+              <polygon points="50,58 46,54 54,54" fill="#2e7d32"/>
+            </svg>`, // 초록냥이 (Green)
+        
+        // 생선 대용량 공통 밥그릇
+        'food': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20 70 Q 50 85 80 70 L 85 80 Q 50 95 15 80 Z" fill="#b0bec5"/>
+            <ellipse cx="50" cy="68" rx="32" ry="12" fill="#78909c"/>
+            <path d="M30 55 Q 50 25 70 55 Q 55 58 30 55" fill="#ffb74d"/>
+            <polygon points="20,48 32,54 28,60" fill="#f57c00"/>
+            <polygon points="80,52 68,54 72,58" fill="#f57c00"/>
+        </svg>`,
+
+        // 특수 격발 삼각김밥 5종
+        'it01': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="35" y="10" width="30" height="80" rx="15" fill="#ffa726"/><line x1="50" y1="15" x2="50" y2="85" stroke="#ffffff" stroke-width="6" stroke-dasharray="8,6"/><polygon points="50,5 30,25 70,25" fill="#f57c00"/><polygon points="50,95 30,75 70,75" fill="#f57c00"/></svg>`,
+        'it02': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect x="10" y="35" width="80" height="30" rx="15" fill="#ff7043"/><line x1="15" y1="50" x2="85" y2="50" stroke="#ffffff" stroke-width="6" stroke-dasharray="8,6"/><polygon points="5,50 25,30 25,70" fill="#d84315"/><polygon points="95,50 75,30 75,70" fill="#d84315"/></svg>`,
+        'it03': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M15 50 Q 40 20 70 50 Q 40 80 15 50" fill="#29b6f6"/><polygon points="15,50 5,35 5,65" fill="#0288d1"/><circle cx="60" cy="45" r="4" fill="#ffffff"/></svg>`,
+        'it04': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="55" r="36" fill="#263238"/><path d="M70 30 Q 85 15 85 5" stroke="#ffeb3b" stroke-width="4" fill="none"/><circle cx="85" cy="5" r="5" fill="#ff5722"/></svg>`,
+        'it05': `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><polygon points="50,5 90,35 75,90 25,90 10,35" fill="url(#grad-gem5)"/><defs><linearGradient id="grad-gem5" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:#f50057" /><stop offset="100%" style="stop-color:#00e5ff" /></linearGradient></defs></svg>`
+    };
+
+    // [수정사항 2] 나와 상대 캐릭터 표시 구간을 위한 전신 일러스트형 대형 벡터 SVG
+    const HERO_SVGs = {
+        player: `<svg viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 15 90 Q 5 70 15 55 Q 22 55 20 75 Q 18 90 25 90" fill="#fb8c00"/>
+            <ellipse cx="50" cy="85" rx="35" ry="25" fill="#ffa726"/>
+            <ellipse cx="50" cy="88" rx="22" ry="15" fill="#ffffff"/>
+            <path d="M 22 40 L 10 10 L 38 25 Z" fill="#fb8c00"/>
+            <path d="M 78 40 L 90 10 L 62 25 Z" fill="#fb8c00"/>
+            <ellipse cx="50" cy="48" rx="38" ry="30" fill="#ffa726"/>
+            <ellipse cx="50" cy="50" rx="32" ry="24" fill="#ffffff"/>
+            <circle cx="36" cy="45" r="5" fill="#37474F"/>
+            <circle cx="64" cy="45" r="5" fill="#37474F"/>
+            <ellipse cx="26" cy="52" rx="6" ry="4" fill="#ff8a80" opacity="0.6"/>
+            <ellipse cx="74" cy="52" rx="6" ry="4" fill="#ff8a80" opacity="0.6"/>
+            <polygon points="50,51 47,48 53,48" fill="#ff5722"/>
+            <path d="M 46 54 Q 50 58 54 54" stroke="#ff5722" stroke-width="2.5" fill="none"/>
+            <circle cx="35" cy="108" r="8" fill="#ffa726"/>
+            <circle cx="65" cy="108" r="8" fill="#ffa726"/>
+        </svg>`,
+        opponent: `<svg viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 15 90 Q 5 70 15 55 Q 22 55 20 75 Q 18 90 25 90" fill="#ec407a"/>
+            <ellipse cx="50" cy="85" rx="35" ry="25" fill="#f48fb1"/>
+            <ellipse cx="50" cy="88" rx="22" ry="15" fill="#ffffff"/>
+            <path d="M 22 40 L 10 10 L 38 25 Z" fill="#ec407a"/>
+            <path d="M 78 40 L 90 10 L 62 25 Z" fill="#ec407a"/>
+            <ellipse cx="50" cy="48" rx="38" ry="30" fill="#f48fb1"/>
+            <ellipse cx="50" cy="50" rx="32" ry="24" fill="#ffffff"/>
+            <circle cx="36" cy="45" r="5" fill="#37474F"/>
+            <circle cx="64" cy="45" r="5" fill="#37474F"/>
+            <ellipse cx="26" cy="52" rx="6" ry="4" fill="#ff4081" opacity="0.5"/>
+            <ellipse cx="74" cy="52" rx="6" ry="4" fill="#ff4081" opacity="0.5"/>
+            <polygon points="50,51 47,48 53,48" fill="#ff4081"/>
+            <path d="M 46 54 Q 50 58 54 54" stroke="#ff4081" stroke-width="2.5" fill="none"/>
+            <circle cx="35" cy="108" r="8" fill="#f48fb1"/>
+            <circle cx="65" cy="108" r="8" fill="#f48fb1"/>
+        </svg>`
+    };
+
+    let currentUser = { id: "", ocp: 9999999 };
+    let currentChannel = "";
+    let rankingData = [
+        { id: "마스터캣", score: 84500, date: 1720853600000 },
+        { id: "체리베리", score: 63200, date: 1720853700000 }
+    ];
+
+    function validateLoginInputs() {
+        const idVal = document.getElementById('input-id').value.trim();
+        const pwVal = document.getElementById('input-pw').value.trim();
+        const btn = document.getElementById('btn-login');
+        btn.style.opacity = (idVal.length > 0 && pwVal.length > 0) ? "1" : "0.5";
+        btn.style.pointerEvents = (idVal.length > 0 && pwVal.length > 0) ? "auto" : "none";
+    }
+
+    function tryLogin() {
+        currentUser.id = document.getElementById('input-id').value.trim();
+        const btn = document.getElementById('btn-login');
+        btn.innerText = "TOUCH TO START";
+        btn.onclick = () => {
+            soundCtrl.startBGM(); // 첫 진입 클릭 시 브라우저 정책 우회 격발
+            transitionToLobby();
+        };
+    }
+
+    function transitionToLobby() {
+        const overlay = document.getElementById('fade-overlay');
+        overlay.style.pointerEvents = "auto";
+        overlay.style.opacity = "1";
+
+        setTimeout(() => {
+            document.getElementById('user-display-name').innerText = currentUser.id;
+            document.getElementById('channel-display-name').innerText = currentUser.id;
+            document.getElementById('ingame-id-label').innerText = currentUser.id;
+
+            // 프로필과 큰 고양이 대치 카드 주입
+            document.getElementById('user-profile-pic').innerHTML = CAT_SVGs[1];
+            document.getElementById('channel-profile-pic').innerHTML = CAT_SVGs[1];
+            
+            document.getElementById('player-char-svg').innerHTML = HERO_SVGs.player;
+            document.getElementById('opponent-char-svg').innerHTML = HERO_SVGs.opponent;
+            document.getElementById('food-center-svg').innerHTML = CAT_SVGs['food'];
+
+            renderRankings();
+            
+            document.getElementById('scene-title').classList.remove('active');
+            document.getElementById('scene-lobby01').classList.add('active');
+
+            setTimeout(() => {
+                overlay.style.opacity = "0";
+                overlay.style.pointerEvents = "none";
+            }, 400);
+        }, 500);
+    }
+
+    function renderRankings() {
+        const box = document.getElementById('ranking-list-box');
+        box.innerHTML = '';
+        const sorted = [...rankingData].sort((a, b) => b.score - a.score || b.date - a.date);
+        sorted.forEach((item, idx) => {
+            const div = document.createElement('div');
+            div.className = `ranking-item ${item.id === currentUser.id ? 'top-user' : ''}`;
+            div.innerHTML = `<span>${idx + 1}위 - ${item.id}</span><span>${item.score}점</span>`;
+            box.appendChild(div);
+        });
+    }
+
+    function enterChannel(name) {
+        currentChannel = name;
+        document.getElementById('scene-lobby01').classList.remove('active');
+        document.getElementById('scene-channel-lobby').classList.add('active');
+        document.getElementById('chat-box').innerHTML = `<div class="chat-bubble">시스템: [${name}] 대기열 매칭방에 진입했습니다.</div>`;
+    }
+
+    function exitChannel() {
+        document.getElementById('scene-channel-lobby').classList.remove('active');
+        document.getElementById('scene-lobby01').classList.add('active');
+    }
+
+    function sendChatMessage() {
+        const input = document.getElementById('chat-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        const box = document.getElementById('chat-box');
+        const node = document.createElement('div');
+        node.className = 'chat-bubble mine';
+        node.innerText = `${currentUser.id}: ${text}`;
+        box.appendChild(node);
+        box.scrollTop = box.scrollHeight;
+        input.value = '';
+
+        setTimeout(() => {
+            const reply = document.createElement('div');
+            reply.className = 'chat-bubble';
+            reply.innerText = `핑크냥이: 준비되시면 하단 매칭시작 버튼을 눌러주세요!`;
+            box.appendChild(reply);
+            box.scrollTop = box.scrollHeight;
+        }, 1000);
+    }
+
+    function handleChatEnter(e) { if (e.key === 'Enter') sendChatMessage(); }
+
+
+    // =======================================================
+    // =================== 인게임 엔진 코어 ====================
+    // =======================================================
+    const BOARD_SIZE = 9;
+    
+    // [수정사항 3] 임시 클리어 목표 점수 100000 점 전격 적용
+    const VICTORY_THRESHOLD = 100000; 
+    
+    let board = [];
+    let movesLeft = 3;
+    let inGameTimer = null;
+    let secondsLeft = 15;
+    let playerGrains = 0; 
+    let opponentGrains = 0; 
+    let isAnimating = false; 
+
+    let activeDragInfo = { isDragging: false, startR: -1, startC: -1, startX: 0, startY: 0 };
+
+    function goToInGame() {
+        document.getElementById('scene-channel-lobby').classList.remove('active');
+        document.getElementById('scene-result').classList.remove('active'); 
+        document.getElementById('scene-ingame').classList.add('active');
+        initGameEngine();
+    }
+
+    function initGameEngine() {
+        movesLeft = 3;
+        playerGrains = 0;
+        opponentGrains = 0;
+        secondsLeft = 15;
+        isAnimating = false;
+        
+        updateInGameHUD();
+        buildBoard();
+        resetTurnTimer();
+    }
+
+    function updateInGameHUD() {
+        document.getElementById('move-counter').innerText = `MOVE 0${movesLeft}/03`;
+        document.getElementById('player-grain-count').innerText = playerGrains;
+
+        const totalShare = playerGrains + opponentGrains;
+        const bar = document.getElementById('food-share-gauge');
+        if (totalShare === 0) {
+            bar.style.width = `50%`;
+        } else {
+            const myRatio = (playerGrains / totalShare) * 100;
+            bar.style.width = `${myRatio}%`;
+        }
+
+        const label = document.getElementById('food-advantage-text');
+        if (playerGrains > opponentGrains) label.innerText = "내가 더 많은 밥알 확보 중!";
+        else if (playerGrains < opponentGrains) label.innerText = "상대 핑크냥이가 치고 나가는 중!";
+        else label.innerText = "서로 팽팽한 밥그릇 대치 중!";
+    }
+
+    function resetTurnTimer() {
+        if (inGameTimer) clearInterval(inGameTimer);
+        secondsLeft = 15;
+        const bar = document.getElementById('game-timer-bar');
+
+        inGameTimer = setInterval(() => {
+            if (isAnimating) return; 
+            secondsLeft -= 0.1;
+            if (secondsLeft <= 0) {
+                clearInterval(inGameTimer);
+                alert("제한 시간이 초과되었습니다! 주도권이 상대에게 넘어갑니다.");
+                runOpponentTurnSimulation();
+            } else {
+                bar.style.width = `${(secondsLeft / 15) * 100}%`;
+            }
+        }, 100);
+    }
+
+    function buildBoard() {
+        const boardEl = document.getElementById('game-board');
+        boardEl.innerHTML = '';
+        board = [];
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            board[r] = [];
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                boardEl.appendChild(cell);
+
+                let type;
+                do {
+                    type = Math.floor(Math.random() * 5) + 1;
+                } while (
+                    (r >= 2 && board[r-1][c].type === type && board[r-2][c].type === type) ||
+                    (c >= 2 && board[r][c-1].type === type && board[r][c-2].type === type)
+                );
+
+                const blockUnit = document.createElement('div');
+                blockUnit.className = `block-unit block-t-${type}`;
+                blockUnit.innerHTML = CAT_SVGs[type];
+                cell.appendChild(blockUnit);
+
+                board[r][c] = { type, elem: blockUnit, cell };
+                bindHybridInputEvents(blockUnit, r, c);
+            }
+        }
+    }
+
+    function bindHybridInputEvents(elem, r, c) {
+        const onStart = (e) => {
+            if (isAnimating || movesLeft <= 0) return; 
+            
+            const pointer = e.touches ? e.touches[0] : e;
+            activeDragInfo = {
+                isDragging: true,
+                startR: r, startC: c,
+                startX: pointer.clientX,
+                startY: pointer.clientY
+            };
+            board[r][c].elem.classList.add('selected');
+
+            window.addEventListener('mousemove', onMove, { passive: false });
+            window.addEventListener('touchmove', onMove, { passive: false });
+            window.addEventListener('mouseup', onEnd, { once: true });
+            window.addEventListener('touchend', onEnd, { once: true });
+        };
+
+        const onMove = (e) => {
+            if (!activeDragInfo.isDragging) return;
+            
+            const pointer = e.touches ? e.touches[0] : e;
+            const diffX = pointer.clientX - activeDragInfo.startX;
+            const diffY = pointer.clientY - activeDragInfo.startY;
+            const threshold = 35;
+
+            if (Math.abs(diffX) > threshold || Math.abs(diffY) > threshold) {
+                window.removeEventListener('mousemove', onMove);
+                window.removeEventListener('touchmove', onMove);
+
+                let targetR = activeDragInfo.startR;
+                let targetC = activeDragInfo.startC;
+
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    targetC = diffX > 0 ? activeDragInfo.startC + 1 : activeDragInfo.startC - 1;
+                } else {
+                    targetR = diffY > 0 ? activeDragInfo.startR + 1 : activeDragInfo.startR - 1;
+                }
+
+                if (targetR >= 0 && targetR < BOARD_SIZE && targetC >= 0 && targetC < BOARD_SIZE) {
+                    executeSwapWithAnimation(activeDragInfo.startR, activeDragInfo.startC, targetR, targetC);
+                }
+                
+                activeDragInfo.isDragging = false;
+            }
+        };
+
+        const onEnd = () => {
+            if (activeDragInfo.isDragging) {
+                const r = activeDragInfo.startR;
+                const c = activeDragInfo.startC;
+                if (board[r] && board[r][c]) {
+                    board[r][c].elem.classList.remove('selected');
+                    if (typeof board[r][c].type === 'string' && board[r][c].type.startsWith('it')) {
+                        triggerItemDirectly(r, c);
+                    }
+                }
+                activeDragInfo.isDragging = false;
+            }
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('touchmove', onMove);
+        };
+
+        elem.addEventListener('mousedown', onStart);
+        elem.addEventListener('touchstart', onStart, { passive: true });
+    }
+
+    async function executeSwapWithAnimation(r1, c1, r2, c2) {
+        if (isAnimating) return;
+        isAnimating = true; 
+        
+        const b1 = board[r1][c1];
+        const b2 = board[r2][c2];
+        b1.elem.classList.remove('selected');
+
+        const rect1 = b1.cell.getBoundingClientRect();
+        const rect2 = b2.cell.getBoundingClientRect();
+        const offsetX = rect2.left - rect1.left;
+        const offsetY = rect2.top - rect1.top;
+
+        const isItemA = typeof b1.type === 'string' && b1.type.startsWith('it');
+        const isItemB = typeof b2.type === 'string' && b2.type.startsWith('it');
+
+        if (isItemA && isItemB) {
+            b1.elem.style.transform = `translate(${offsetX / 2}px, ${offsetY / 2}px)`;
+            b2.elem.style.transform = `translate(${-offsetX / 2}px, ${-offsetY / 2}px)`;
+            await new Promise(res => setTimeout(res, 250));
+            
+            soundCtrl.playSFX('item_trigger');
+            await executeItemCombination(r1, c1, r2, c2);
+            b1.elem.style.transform = "translate(0px, 0px)";
+            b2.elem.style.transform = "translate(0px, 0px)";
+            
+            movesLeft--;
+            updateInGameHUD();
+            isAnimating = false;
+            checkTurnEndConditions();
+            return;
+        }
+
+        b1.elem.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+        b2.elem.style.transform = `translate(${-offsetX}px, ${-offsetY}px)`;
+        soundCtrl.playSFX('swap');
+
+        await new Promise(res => setTimeout(res, 250));
+
+        swapBoardData(r1, c1, r2, c2);
+        b1.elem.style.transform = "translate(0px, 0px)";
+        b2.elem.style.transform = "translate(0px, 0px)";
+
+        const matchSets = findMatchSets();
+        if (matchSets.length > 0) {
+            movesLeft--;
+            updateInGameHUD();
+            await processMarkingPipeline(matchSets, { r: r2, c: c2 });
+        } else {
+            b1.elem.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
+            b2.elem.style.transform = `translate(${-offsetX}px, ${-offsetY}px)`;
+            soundCtrl.playSFX('swap');
+            await new Promise(res => setTimeout(res, 200));
+            
+            swapBoardData(r1, c1, r2, c2);
+            b1.elem.style.transform = "translate(0px, 0px)";
+            b2.elem.style.transform = "translate(0px, 0px)";
+        }
+
+        isAnimating = false;
+        checkTurnEndConditions();
+    }
+
+    function swapBoardData(r1, c1, r2, c2) {
+        const tempType = board[r1][c1].type;
+        board[r1][c1].type = board[r2][c2].type;
+        board[r2][c2].type = tempType;
+
+        const b1 = board[r1][c1];
+        const b2 = board[r2][c2];
+
+        b1.elem.className = `block-unit block-t-${b1.type}`;
+        b1.elem.innerHTML = CAT_SVGs[b1.type];
+        b2.elem.className = `block-unit block-t-${b2.type}`;
+        b2.elem.innerHTML = CAT_SVGs[b2.type];
+
+        bindHybridInputEvents(b1.elem, r1, c1);
+        bindHybridInputEvents(b2.elem, r2, c2);
+    }
+
+    function checkTurnEndConditions() {
+        if (playerGrains >= VICTORY_THRESHOLD) {
+            endMatchGame(true);
+            return;
+        }
+        if (movesLeft <= 0 && !isAnimating) {
+            runOpponentTurnSimulation(); 
+        }
+    }
+
+    async function runOpponentTurnSimulation() {
+        isAnimating = true;
+        document.getElementById('food-advantage-text').innerText = "상대 핑크냥이 매칭 연산 중...";
+        await new Promise(res => setTimeout(res, 1200));
+
+        // 인플레이션된 핑크냥이 수치 가산
+        const pinkGain = Math.floor(Math.random() * 8000) + 7000;
+        opponentGrains += pinkGain;
+        if (opponentGrains > VICTORY_THRESHOLD) opponentGrains = VICTORY_THRESHOLD;
+        
+        updateInGameHUD();
+
+        if (opponentGrains >= VICTORY_THRESHOLD) {
+            endMatchGame(false); 
+        } else {
+            movesLeft = 3;
+            resetTurnTimer();
+            updateInGameHUD();
+        }
+        isAnimating = false;
+    }
+
+    // =======================================================
+    // =================== 파이프라인 연산 모듈 ==================
+    // =======================================================
+    function findMatchSets() {
+        let hMatches = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+        let vMatches = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+        let sqMatches = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE - 2; c++) {
+                let t = board[r][c].type;
+                if (t && typeof t === 'number' && board[r][c+1].type === t && board[r][c+2].type === t) {
+                    hMatches[r][c] = hMatches[r][c+1] = hMatches[r][c+2] = true;
+                    let k = c + 3;
+                    while (k < BOARD_SIZE && board[r][k].type === t) { hMatches[r][k] = true; k++; }
+                }
+            }
+        }
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            for (let r = 0; r < BOARD_SIZE - 2; r++) {
+                let t = board[r][c].type;
+                if (t && typeof t === 'number' && board[r+1][c].type === t && board[r+2][c].type === t) {
+                    vMatches[r][c] = vMatches[r+1][c] = vMatches[r+2][c] = true;
+                    let k = r + 3;
+                    while (k < BOARD_SIZE && board[k][c].type === t) { vMatches[k][c] = true; k++; }
+                }
+            }
+        }
+        for (let r = 0; r < BOARD_SIZE - 1; r++) {
+            for (let c = 0; c < BOARD_SIZE - 1; c++) {
+                let t = board[r][c].type;
+                if (t && typeof t === 'number' && board[r+1][c].type === t && board[r][c+1].type === t && board[r+1][c+1].type === t) {
+                    sqMatches[r][c] = sqMatches[r+1][c] = sqMatches[r][c+1] = sqMatches[r+1][c+1] = true;
+                }
+            }
+        }
+
+        let visited = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(false));
+        let matchSets = [];
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if ((hMatches[r][c] || vMatches[r][c] || sqMatches[r][c]) && !visited[r][c]) {
+                    let type = board[r][c].type;
+                    let queue = [{r, c}];
+                    let cells = [];
+                    visited[r][c] = true;
+
+                    while (queue.length > 0) {
+                        let curr = queue.shift();
+                        cells.push(curr);
+                        let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+                        for (let [dr, dc] of dirs) {
+                            let nr = curr.r + dr; let nc = curr.c + dc;
+                            if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                                if (!visited[nr][nc] && board[nr][nc].type === type && (hMatches[nr][nc] || vMatches[nr][nc] || sqMatches[nr][nc])) {
+                                    visited[nr][nc] = true;
+                                    queue.push({r: nr, c: nc});
+                                }
+                            }
+                        }
+                    }
+                    matchSets.push({ type, cells });
+                }
+            }
+        }
+        return matchSets;
+    }
+
+    async function processMarkingPipeline(matchSets, userActionTile = null) {
+        isAnimating = true; 
+
+        // 콤보/매칭 사운드 출력 트리거
+        soundCtrl.playSFX(matchSets.length > 1 ? 'combo' : 'match');
+
+        for (const set of matchSets) {
+            let itemToSpawn = null;
+            let spawnPos = null;
+
+            let rCoords = set.cells.map(c => c.r);
+            let cCoords = set.cells.map(c => c.c);
+            let minR = Math.min(...rCoords), maxR = Math.max(...rCoords);
+            let minC = Math.min(...cCoords), maxC = Math.max(...cCoords);
+            let maxColLength = maxR - minR + 1;
+            let maxRowLength = maxC - minC + 1;
+
+            if (userActionTile && set.cells.some(c => c.r === userActionTile.r && c.c === userActionTile.c)) {
+                spawnPos = userActionTile;
+            } else {
+                let rowCount = {}, colCount = {};
+                set.cells.forEach(pt => {
+                    rowCount[pt.r] = (rowCount[pt.r] || 0) + 1;
+                    colCount[pt.c] = (colCount[pt.c] || 0) + 1;
+                });
+                let intersectR = Object.keys(rowCount).find(key => rowCount[key] >= 3);
+                let intersectC = Object.keys(colCount).find(key => colCount[key] >= 3);
+                if (intersectR !== undefined && intersectC !== undefined) {
+                    spawnPos = { r: parseInt(intersectR), c: parseInt(intersectC) };
+                } else {
+                    spawnPos = set.cells[Math.floor(set.cells.length / 2)];
+                }
+            }
+
+            if (maxRowLength >= 5 || maxColLength >= 5) {
+                itemToSpawn = "it05";
+                if (maxRowLength >= 5 && maxColLength >= 5) triggerPremiumMatchEffect();
+            } else if (maxRowLength >= 3 && maxColLength >= 3) {
+                itemToSpawn = "it04";
+            } else if (maxRowLength === 4) {
+                itemToSpawn = "it01";
+            } else if (maxColLength === 4) {
+                itemToSpawn = "it02";
+            } else {
+                let has2x2 = false;
+                for (let pt of set.cells) {
+                    let r = pt.r, c = pt.c;
+                    if (set.cells.some(n => n.r === r+1 && n.c === c) && set.cells.some(n => n.r === r && n.c === c+1) && set.cells.some(n => n.r === r+1 && n.c === c+1)) {
+                        has2x2 = true; break;
+                    }
+                }
+                if (has2x2) itemToSpawn = "it03";
+            }
+
+            // 개당 1500점 가치 획득 연동 (10만점 목표에 걸맞게 조율)
+            gainFoodGrains(set.cells.length * 1500);
+
+            let destroyPromises = set.cells.map(cell => {
+                return new Promise(async (resolve) => {
+                    playExplodeFX(cell.r, cell.c);
+                    const originalType = board[cell.r][cell.c].type;
+                    board[cell.r][cell.c].type = 0;
+                    board[cell.r][cell.c].elem.style.display = 'none';
+                    
+                    if (typeof originalType === 'string' && originalType.startsWith('it')) {
+                        await triggerItemDirectlySilent(cell.r, cell.c, originalType);
+                    }
+                    setTimeout(resolve, 200); 
+                });
+            });
+
+            await Promise.all(destroyPromises);
+
+            if (itemToSpawn && spawnPos) {
+                board[spawnPos.r][spawnPos.c].type = itemToSpawn;
+                board[spawnPos.r][spawnPos.c].elem.className = `block-unit block-t-${itemToSpawn}`;
+                board[spawnPos.r][spawnPos.c].elem.innerHTML = CAT_SVGs[itemToSpawn];
+                board[spawnPos.r][spawnPos.c].elem.style.display = 'flex';
+                bindHybridInputEvents(board[spawnPos.r][spawnPos.c].elem, spawnPos.r, spawnPos.c);
+            }
+        }
+
+        await new Promise(res => setTimeout(res, 100));
+        await applyGravityCascade();
+        await fillEmptyBlocks();
+
+        const chainMatches = findMatchSets();
+        if (chainMatches.length > 0) {
+            await processMarkingPipeline(chainMatches);
+        }
+    }
+
+    function triggerPremiumMatchEffect() {
+        const wrapper = document.getElementById('game-wrapper');
+        wrapper.classList.add('shake-active');
+        gainFoodGrains(8000); 
+        setTimeout(() => wrapper.classList.remove('shake-active'), 500);
+    }
+
+    function playExplodeFX(r, c) {
+        const fx = document.createElement('div');
+        fx.className = 'fx-burst';
+        board[r][c].cell.appendChild(fx);
+        setTimeout(() => fx.remove(), 300);
+    }
+
+    // [개선 1] 중력으로 떨어지는 물리 반동 큐빅 베지어 낙하 애니메이터
+    async function applyGravityCascade() {
+        let gravityAnimations = [];
+
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            let emptyCount = 0;
+            for (let r = BOARD_SIZE - 1; r >= 0; r--) {
+                if (board[r][c].type === 0) {
+                    emptyCount++;
+                } else if (emptyCount > 0) {
+                    const targetR = r + emptyCount;
+                    const b = board[r][c];
+
+                    board[targetR][c].type = b.type;
+                    const targetElem = board[targetR][c].elem;
+                    targetElem.className = `block-unit block-t-${b.type}`;
+                    targetElem.innerHTML = CAT_SVGs[b.type];
+                    targetElem.style.display = 'flex';
+
+                    b.type = 0;
+                    b.elem.style.display = 'none';
+
+                    // 하드웨어 가속 트랜지션 무효화 후 상향 좌표 배치
+                    targetElem.style.transition = 'none';
+                    targetElem.style.transform = `translateY(-${emptyCount * 100}%)`;
+
+                    bindHybridInputEvents(targetElem, targetR, c);
+                    gravityAnimations.push(targetElem);
+                }
+            }
+        }
+
+        if (gravityAnimations.length > 0) {
+            board[0][0].elem.offsetHeight; // 리플로우 유도
+            gravityAnimations.forEach(elem => {
+                elem.style.transition = 'transform 0.38s cubic-bezier(0.25, 1, 0.5, 1.1)'; // 부드러운 가속 바운스
+                elem.style.transform = 'translateY(0px)';
+            });
+            await new Promise(res => setTimeout(res, 400)); 
+        }
+    }
+
+    async function fillEmptyBlocks() {
+        let spawnAnimations = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c].type === 0) {
+                    const nextType = Math.floor(Math.random() * 5) + 1;
+                    board[r][c].type = nextType;
+                    
+                    const elem = board[r][c].elem;
+                    elem.className = `block-unit block-t-${nextType}`;
+                    elem.innerHTML = CAT_SVGs[nextType];
+                    elem.style.display = 'flex';
+                    bindHybridInputEvents(elem, r, c);
+
+                    elem.style.transition = 'none';
+                    elem.style.transform = `translateY(-${(r + 4) * 100}%)`;
+
+                    spawnAnimations.push(elem);
+                }
+            }
+        }
+
+        if (spawnAnimations.length > 0) {
+            board[0][0].elem.offsetHeight; 
+            spawnAnimations.forEach(elem => {
+                elem.style.transition = 'transform 0.45s cubic-bezier(0.25, 1, 0.5, 1.08)';
+                elem.style.transform = 'translateY(0px)';
+            });
+            await new Promise(res => setTimeout(res, 480));
+        }
+    }
+
+    // =======================================================
+    // ============= 특수 아이템 합성 및 추적 알고리즘 ============
+    // =======================================================
+    async function executeItemCombination(r1, c1, r2, c2) {
+        const itemA = board[r1][c1].type;
+        const itemB = board[r2][c2].type;
+        const comboKey = [itemA, itemB].sort().join('+');
+        const targetPos = { r: r2, c: c2 };
+
+        board[r1][c1].type = 0; board[r1][c1].elem.style.display = 'none';
+        board[r2][c2].type = 0; board[r2][c2].elem.style.display = 'none';
+
+        if (comboKey === 'it01+it01') {
+            await Promise.all([runRowDestroy(targetPos.r - 1), runRowDestroy(targetPos.r), runRowDestroy(targetPos.r + 1)]);
+        } else if (comboKey === 'it01+it02') {
+            await Promise.all([runRowDestroy(targetPos.r), runColDestroy(targetPos.c)]);
+        } else if (comboKey === 'it02+it02') {
+            await Promise.all([runColDestroy(targetPos.c - 1), runColDestroy(targetPos.c), runColDestroy(targetPos.c + 1)]);
+        } else if (comboKey === 'it01+it03' || comboKey === 'it02+it03') {
+            const rndPt = findValidFishTarget();
+            if (rndPt) {
+                await animateFishFlight(targetPos.r, targetPos.c, rndPt.r, rndPt.c);
+                if (comboKey.includes('it01')) await runColDestroy(rndPt.c); else await runRowDestroy(rndPt.r);
+            }
+        } else if (comboKey === 'it03+it04') {
+            const rndPt = findValidFishTarget();
+            if (rndPt) {
+                await animateFishFlight(targetPos.r, targetPos.c, rndPt.r, rndPt.c);
+                await runAreaDestroy(rndPt.r, rndPt.c, 1);
+            }
+        } else if (comboKey === 'it03+it03') {
+            let targets = [];
+            for (let i = 0; i < 3; i++) {
+                let t = findValidFishTarget();
+                if (t) {
+                    targets.push(t);
+                    board[t.r][t.c].type = 0; 
+                }
+            }
+            targets.forEach(t => { board[t.r][t.c].type = Math.floor(Math.random() * 5) + 1; });
+            
+            let flightPromises = targets.map(t => {
+                return (async () => {
+                    await animateFishFlight(targetPos.r, targetPos.c, t.r, t.c);
+                    await triggerDestructionWithSplash(t.r, t.c);
+                })();
+            });
+            await Promise.all(flightPromises);
+        } else if (comboKey === 'it04+it04') {
+            await runAreaDestroy(targetPos.r, targetPos.c, 2);
+        } else if (comboKey === 'it05+it05') {
+            await runFullBoardDestroy();
+        } else if (comboKey === 'it01+it05' || comboKey === 'it02+it05') {
+            await runMirrorballTransformation('it01');
+        } else if (comboKey === 'it03+it05') {
+            await runMirrorballTransformation('it03');
+        } else if (comboKey === 'it04+it05') {
+            await runMirrorballTransformation('it04');
+        }
+
+        await new Promise(res => setTimeout(res, 200));
+        await applyGravityCascade();
+        await fillEmptyBlocks();
+
+        const chainMatches = findMatchSets();
+        if (chainMatches.length > 0) await processMarkingPipeline(chainMatches);
+    }
+
+    async function animateFishFlight(startR, startC, targetR, targetC) {
+        const wrapper = document.getElementById('board-wrapper');
+        const boardRect = wrapper.getBoundingClientRect();
+        const cellStart = board[startR][startC].cell.getBoundingClientRect();
+
+        const missile = document.createElement('div');
+        missile.style.position = 'absolute';
+        missile.style.width = '35px';
+        missile.style.height = '35px';
+        missile.style.left = `${cellStart.left - boardRect.left + 5}px`;
+        missile.style.top = `${cellStart.top - boardRect.top + 5}px`;
+        missile.style.zIndex = '120';
+        missile.style.transition = 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+        missile.innerHTML = CAT_SVGs['it03'];
+        wrapper.appendChild(missile);
+
+        missile.offsetHeight;
+
+        const cellTarget = board[targetR][targetC].cell.getBoundingClientRect();
+        missile.style.left = `${cellTarget.left - boardRect.left + 5}px`;
+        missile.style.top = `${cellTarget.top - boardRect.top + 5}px`;
+
+        await new Promise(res => setTimeout(res, 400));
+        missile.remove();
+    }
+
+    async function triggerItemDirectlySilent(r, c, iType) {
+        if (iType === 'it01') await runColDestroy(c);
+        else if (iType === 'it02') await runRowDestroy(r);
+        else if (iType === 'it03') await fireTracingFish(r, c);
+        else if (iType === 'it04') await runAreaDestroy(r, c, 1);
+        else if (iType === 'it05') {
+            const col = getMostFrequentBlockColor();
+            await destroyAllBlocksOfColor(col);
+        }
+    }
+
+    async function triggerItemDirectly(r, c) {
+        if (isAnimating) return;
+        isAnimating = true;
+
+        const iType = board[r][c].type;
+        board[r][c].type = 0; board[r][c].elem.style.display = 'none';
+        playExplodeFX(r, c);
+
+        soundCtrl.playSFX('item_trigger');
+        await triggerItemDirectlySilent(r, c, iType);
+
+        await new Promise(res => setTimeout(res, 200));
+        await applyGravityCascade();
+        await fillEmptyBlocks();
+
+        const chainMatches = findMatchSets();
+        if (chainMatches.length > 0) await processMarkingPipeline(chainMatches);
+        isAnimating = false;
+        checkTurnEndConditions();
+    }
+
+    // [개선 1] 십자 1칸 파괴 -> 다른 랜덤 단일 블록 타격 고기 미사일
+    async function fireTracingFish(startR, startC) {
+        // 1단계: 주변 십자 1칸(상하좌우 및 시작지점 총 5칸) 척결
+        let crossPoints = [
+            {r: startR, c: startC},
+            {r: startR - 1, c: startC},
+            {r: startR + 1, c: startC},
+            {r: startR, c: startC - 1},
+            {r: startR, c: startC + 1}
+        ];
+        
+        let crossTasks = [];
+        crossPoints.forEach(pt => {
+            if (pt.r >= 0 && pt.r < BOARD_SIZE && pt.c >= 0 && pt.c < BOARD_SIZE) {
+                if (board[pt.r][pt.c].type !== 0) {
+                    crossTasks.push(triggerDestructionWithSplash(pt.r, pt.c));
+                }
+            }
+        });
+        await Promise.all(crossTasks);
+
+        // 2단계: 유효 사격용 단일 타겟 서칭
+        let target = findValidFishTarget();
+        if (!target) return; 
+
+        // 3단계: 미끄러지는 비행 모션
+        await animateFishFlight(startR, startC, target.r, target.c);
+
+        // 4단계: 타겟 도달 시 '오직 단일 한 블록만' 정밀 요격 파쇄
+        if (board[target.r][target.c].type !== 0) {
+            await triggerDestructionWithSplash(target.r, target.c);
+        }
+    }
+
+    function findValidFishTarget() {
+        let possibleTargets = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c].type !== 0 && typeof board[r][c].type === 'number') {
+                    possibleTargets.push({ r, c });
+                }
+            }
+        }
+        if (possibleTargets.length === 0) return null;
+        return possibleTargets[Math.floor(Math.random() * possibleTargets.length)];
+    }
+
+    // [개선 4] 부드러운 전광 관통 가로/세로 레이저 FX 렌더링 포함 파쇄 루프
+    async function runRowDestroy(r) {
+        if (r < 0 || r >= BOARD_SIZE) return;
+        
+        const wrapper = document.getElementById('board-wrapper');
+        const cellRect = board[r][0].cell.getBoundingClientRect();
+        const boardRect = wrapper.getBoundingClientRect();
+
+        const laser = document.createElement('div');
+        laser.className = 'laser-h-fx';
+        laser.style.top = `${cellRect.top - boardRect.top}px`;
+        wrapper.appendChild(laser);
+        setTimeout(() => laser.remove(), 500);
+
+        let tasks = [];
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            if (board[r][c].type !== 0) {
+                tasks.push(triggerDestructionWithSplash(r, c));
+            }
+        }
+        await Promise.all(tasks);
+    }
+
+    async function runColDestroy(c) {
+        if (c < 0 || c >= BOARD_SIZE) return;
+
+        const wrapper = document.getElementById('board-wrapper');
+        const cellRect = board[0][c].cell.getBoundingClientRect();
+        const boardRect = wrapper.getBoundingClientRect();
+
+        const laser = document.createElement('div');
+        laser.className = 'laser-v-fx';
+        laser.style.left = `${cellRect.left - boardRect.left}px`;
+        wrapper.appendChild(laser);
+        setTimeout(() => laser.remove(), 500);
+
+        let tasks = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            if (board[r][c].type !== 0) {
+                tasks.push(triggerDestructionWithSplash(r, c));
+            }
+        }
+        await Promise.all(tasks);
+    }
+
+    async function runAreaDestroy(centerR, centerC, radius) {
+        const wrapper = document.getElementById('board-wrapper');
+        const cellRect = board[centerR][centerC].cell.getBoundingClientRect();
+        const boardRect = wrapper.getBoundingClientRect();
+
+        const wave = document.createElement('div');
+        wave.className = 'shockwave-fx';
+        wave.style.left = `${cellRect.left - boardRect.left + (cellRect.width / 2)}px`;
+        wave.style.top = `${cellRect.top - boardRect.top + (cellRect.height / 2)}px`;
+        wave.style.width = `${cellRect.width * (radius * 2 + 1)}px`;
+        wave.style.height = `${cellRect.height * (radius * 2 + 1)}px`;
+        wrapper.appendChild(wave);
+        setTimeout(() => wave.remove(), 500);
+
+        let tasks = [];
+        for (let r = centerR - radius; r <= centerR + radius; r++) {
+            for (let c = centerC - radius; c <= centerC + radius; c++) {
+                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
+                    if (board[r][c].type !== 0) {
+                        tasks.push(triggerDestructionWithSplash(r, c));
+                    }
+                }
+            }
+        }
+        await Promise.all(tasks);
+    }
+
+    async function runFullBoardDestroy() {
+        let tasks = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c].type !== 0 && typeof board[r][c].type === 'number') {
+                    tasks.push(triggerDestructionWithSplash(r, c));
+                }
+            }
+        }
+        await Promise.all(tasks);
+    }
+
+    async function destroyAllBlocksOfColor(color) {
+        let tasks = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c].type === color) {
+                    tasks.push(triggerDestructionWithSplash(r, c));
+                }
+            }
+        }
+        await Promise.all(tasks);
+    }
+
+    function triggerDestructionWithSplash(r, c) {
+        return new Promise(async (resolve) => {
+            const originalType = board[r][c].type;
+            board[r][c].type = 0;
+            board[r][c].elem.style.display = 'none';
+            playExplodeFX(r, c);
+            gainFoodGrains(400); // 파쇄 폭쇄 시 대량 포인트 획득
+
+            if (typeof originalType === 'string' && originalType.startsWith('it')) {
+                await triggerItemDirectlySilent(r, c, originalType);
+            }
+            setTimeout(resolve, 150); 
+        });
+    }
+
+    async function runMirrorballTransformation(targetType) {
+        const color = getMostFrequentBlockColor();
+        let conversionTasks = [];
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c].type === color) {
+                    board[r][c].type = targetType;
+                    board[r][c].elem.className = `block-unit block-t-${targetType}`;
+                    board[r][c].elem.innerHTML = CAT_SVGs[targetType];
+                    bindHybridInputEvents(board[r][c].elem, r, c);
+                }
+            }
+        }
+        await new Promise(res => setTimeout(res, 250)); 
+        
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (board[r][c].type === targetType) {
+                    conversionTasks.push(triggerItemDirectlySilent(r, c, targetType));
+                }
+            }
+        }
+        await Promise.all(conversionTasks);
+    }
+
+    function getMostFrequentBlockColor() {
+        let counts = { 1:0, 2:0, 3:0, 4:0, 5:0 };
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                if (typeof board[r][c].type === 'number' && board[r][c].type > 0) counts[board[r][c].type]++;
+            }
+        }
+        return Object.keys(counts).reduce((a, b) => counts[a] > counts[b] ? a : b);
+    }
+
+    // =======================================================
+    // =================== 점수 연산 및 정산 ==================
+    // =======================================================
+    function gainFoodGrains(amt) {
+        playerGrains += amt;
+        if (playerGrains > VICTORY_THRESHOLD) playerGrains = VICTORY_THRESHOLD;
+        updateInGameHUD();
+    }
+
+    function endMatchGame(isWin) {
+        if (inGameTimer) clearInterval(inGameTimer);
+        document.getElementById('scene-ingame').classList.remove('active');
+        document.getElementById('scene-result').classList.add('active');
+
+        const finalScore = playerGrains;
+        document.getElementById('final-score-val').innerText = finalScore;
+
+        if (isWin) {
+            document.getElementById('result-status').innerText = "배틀 승리!";
+            document.getElementById('result-detail').innerText = "상대 핑크냥이보다 먼저 밥알 100000개를 완벽하게 선점했습니다!";
+            rankingData.push({ id: currentUser.id, score: finalScore, date: Date.now() });
+            soundCtrl.playSFX('win');
+        } else {
+            document.getElementById('result-status').innerText = "배틀 패배..";
+            document.getElementById('result-detail').innerText = "상대 고양이가 내 턴이 끝난 틈을 타 밥알 100000개를 먼저 다 먹어버렸습니다.";
+            soundCtrl.playSFX('lose');
+        }
+    }
+
+    function forfeitGame() { 
+        if (confirm("정말 기권하시겠습니까? 대전에서 패배 처리됩니다.")) {
+            soundCtrl.playSFX('lose');
+            endMatchGame(false); 
+        }
+    }
+    
+    function returnToLobbyFromResults() {
+        document.getElementById('scene-result').classList.remove('active');
+        document.getElementById('scene-lobby01').classList.add('active');
+        renderRankings();
+    }
+</script>
+</body>
+</html>
