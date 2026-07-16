@@ -3,54 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>귤냥이와 친구들 - 완전판 프로토타입 V8</title>
+    <title>귤냥이와 친구들 - 완전판 프로토타입 V9</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Malgun Gothic', sans-serif; user-select: none; -webkit-user-select: none; }
         
         body { 
-            background-color: #1a1a1a; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            height: 100vh; 
-            width: 100vw; 
-            margin: 0; 
-            padding: 0;
-            overflow: hidden; 
+            background-color: #1a1a1a; display: flex; justify-content: center; align-items: center; 
+            height: 100vh; width: 100vw; overflow: hidden; 
         }
         
         #game-wrapper {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: calc(100vh * 750 / 1334);
-            max-height: calc(100vw * 1334 / 750);
-            aspect-ratio: 750 / 1334;
-            background: radial-gradient(circle, #fffef0 0%, #ffdca3 100%);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            position: relative; width: 100%; height: 100%;
+            max-width: calc(100vh * 750 / 1334); max-height: calc(100vw * 1334 / 750);
+            aspect-ratio: 750 / 1334; background: radial-gradient(circle, #fffef0 0%, #ffdca3 100%);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.8); display: flex; flex-direction: column; overflow: hidden;
         }
 
         #fade-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: #000; opacity: 0; pointer-events: none; z-index: 999;
-            transition: opacity 0.3s ease-in-out;
+            background: #000; opacity: 0; pointer-events: none; z-index: 999; transition: opacity 0.3s ease-in-out;
         }
 
+        /* [요구사항 2] 사운드 버튼을 하단 오버레이로 이동 및 최적화 */
         #sound-toggle {
-            position: absolute; top: 2%; right: 4%; width: 44px; height: 44px;
-            background: rgba(255, 255, 255, 0.9); border: 3px solid #ff9800; border-radius: 50%;
+            position: absolute; bottom: 25px; right: 25px; width: 44px; height: 44px;
+            background: rgba(255, 255, 255, 0.85); border: 2px solid #ff9800; border-radius: 50%;
             display: flex; align-items: center; justify-content: center; font-size: 20px;
-            cursor: pointer; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.15); transition: transform 0.15s;
+            cursor: pointer; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.25); transition: transform 0.15s;
         }
         #sound-toggle:active { transform: scale(0.9); }
 
-        .scene {
-            position: absolute; top: 8%; bottom: 8%; width: 100%; display: none;
-            flex-direction: column; padding: 20px; overflow: hidden;
-        }
+        .scene { position: absolute; top: 8%; bottom: 8%; width: 100%; display: none; flex-direction: column; padding: 20px; overflow: hidden; }
         .scene.active { display: flex; }
 
         /* 타이틀 UI */
@@ -72,10 +55,13 @@
         .touch-start-text { font-size: 26px; font-weight: 900; color: #ff5722; text-shadow: 2px 2px 0px #fff; animation: blink 1.2s infinite; margin-top: 150px; }
         @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
-        /* 로비 개선 (채널 버튼 확대, 랭킹 축소) */
+        /* 로비 개선 */
         .hud-user { display: flex; align-items: center; background: rgba(255,255,255,0.9); padding: 12px; border-radius: 18px; border: 3px solid #ffb74d; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
-        .hud-profile { width: 55px; height: 55px; background: #fff; border-radius: 12px; border: 2px solid #ffa726; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+        
+        /* [요구사항 4] 프로필 캐릭터 투명화 반영 */
+        .hud-profile { width: 55px; height: 55px; background: transparent; border-radius: 12px; border: none; overflow: hidden; display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)); }
         .hud-profile svg { width: 100%; height: 100%; }
+        
         .hud-details { flex: 1; margin-left: 12px; }
         .hud-name { font-size: 16px; font-weight: 800; color: #5d4037; }
         .hud-ocp { font-size: 13px; color: #f57c00; font-weight: bold; margin-top: 3px; }
@@ -94,7 +80,7 @@
         .ranking-item { display: flex; justify-content: space-between; padding: 6px 10px; background: #fff; border-radius: 8px; font-size: 12px; font-weight: bold; }
         .ranking-item.top-user { background: #fff3e0; border: 1px solid #ffb74d; }
 
-        /* 대기방 개선 (게임 시작 버튼 중상단 배치) */
+        /* 대기방 */
         .chat-panel { flex: 1; background: rgba(255,255,255,0.9); border-radius: 18px; border: 3px solid #ffcc80; display: flex; flex-direction: column; overflow: hidden; margin-bottom: 5px; }
         .chat-log { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 8px; }
         .chat-bubble { font-size: 13px; padding: 8px 12px; border-radius: 10px; background: #ffe0b2; align-self: flex-start; max-width: 85%; line-height: 1.4; color: #5d4037; }
@@ -103,7 +89,7 @@
         .chat-input-row input { flex: 1; padding: 12px; border: 1px solid #ffcc80; border-radius: 8px; font-size: 14px; outline: none; }
         .chat-input-row button { padding: 0 16px; margin-left: 8px; border: none; background: #ff9800; color: #fff; border-radius: 8px; font-weight: bold; cursor: pointer; }
 
-        /* 인게임 헤더 및 대형 점수판 */
+        /* 인게임 헤더 */
         .ingame-header { position: relative; z-index: 100; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: #fffef0; padding: 8px 12px; border-radius: 12px; border: 1.5px solid #ffcc80;}
         .ingame-back { padding: 6px 12px; border-radius: 8px; border: none; background: #b0bec5; color: #fff; font-weight: bold; cursor: pointer; }
         .ingame-moves { font-size: 16px; font-weight: 800; color: #d32f2f; }
@@ -111,38 +97,57 @@
         .timer-container { position: relative; z-index: 100; width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
         .timer-bar { width: 100%; height: 100%; background: linear-gradient(to right, #4caf50, #ffeb3b, #f44336); transition: width 0.1s linear; }
 
-        .battle-area { position: relative; z-index: 100; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; background: #fffef0; padding: 10px 8px; border-radius: 18px; border: 3px solid #ffb74d; gap: 6px; box-shadow: 0 6px 15px rgba(0,0,0,0.06); }
-        .battle-char-node { width: 81px; text-align: center; display: flex; flex-direction: column; align-items: center; }
-        .battle-char-node .char-view { width: 72px; height: 88px; background: linear-gradient(135deg, #ffffff 0%, #ffeb3b 150%); border-radius: 16px; border: 3px solid #ff9800; padding: 4px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); position: relative; }
-        .battle-char-node.opponent .char-view { border-color: #f48fb1; background: linear-gradient(135deg, #ffffff 0%, #f48fb1 150%); }
+        .battle-area { position: relative; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 15px; background: #fffef0; padding: 15px 10px; border-radius: 18px; border: 3px solid #ffb74d; box-shadow: 0 6px 15px rgba(0,0,0,0.06); }
+        
+        /* [요구사항 1] 점수판 대형화 및 누적 형태로 완전 개편 */
+        .food-score-display { display: flex; width: 100%; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
+        .score-box { display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .score-box .label { font-size: 11px; font-weight: 900; color: #8d6e63; margin-bottom: 4px; }
+        .score-box .val { font-size: 18px; font-weight: 900; letter-spacing: -0.5px; }
+        .score-box.player .val { color: #1976d2; }
+        .score-box.opponent .val { color: #d32f2f; }
+
+        .vs-center { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; position: relative; flex: 1.2; }
+        .target-text { font-size: 12px; font-weight: 900; color: #e65100; margin-bottom: 4px; }
+        .vs-food-container { position: relative; width: 100%; display: flex; justify-content: center; }
+        .food-icon-large { font-size: 38px; animation: floatAnim 2.5s infinite ease-in-out; text-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        
+        .turn-score-popup { 
+            position: absolute; top: -15px; left: 50%; transform: translateX(-50%) scale(1);
+            font-size: 24px; font-weight: 900; color: #ffeb3b; 
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 4px 8px rgba(0,0,0,0.6);
+            opacity: 0; pointer-events: none; white-space: nowrap; z-index: 150;
+        }
+        
+        /* 다이나믹 비주얼 팝업 및 이동 애니메이션 클래스 */
+        .turn-score-popup.show { opacity: 1; transform: translateX(-50%) scale(1.2); transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .turn-score-popup.grow { transform: translateX(-50%) scale(1.6); color: #ff9800; }
+        .turn-score-popup.fly-p1 { transition: all 0.5s cubic-bezier(0.5, 0, 0.1, 1); transform: translate(-100px, 20px) scale(0.4); opacity: 0; }
+        .turn-score-popup.fly-p2 { transition: all 0.5s cubic-bezier(0.5, 0, 0.1, 1); transform: translate(100px, 20px) scale(0.4); opacity: 0; }
+
+        .battle-char-row { display: flex; width: 100%; justify-content: space-between; align-items: flex-end; }
+        .battle-char-node { width: 80px; text-align: center; display: flex; flex-direction: column; align-items: center; }
+        
+        /* [요구사항 4] 인게임 캐릭터 배경 테두리 완전 투명화 */
+        .battle-char-node .char-view { 
+            width: 75px; height: 90px; background: transparent; border: none; padding: 0; 
+            display: flex; align-items: center; justify-content: center; position: relative; 
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.25)); 
+        }
         .battle-char-node .char-view svg { width: 100%; height: 100%; transform-origin: bottom center; animation: cat-breathe 2.5s ease-in-out infinite; }
         .battle-char-node.opponent .char-view svg { animation: cat-breathe 2.8s ease-in-out infinite; }
         
         @keyframes cat-breathe { 0%, 100% { transform: scaleY(1) scaleX(1) translateY(0); } 50% { transform: scaleY(0.93) scaleX(1.03) translateY(2.5px); } }
+        @keyframes floatAnim { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
 
-        .battle-char-node .char-name { font-size: 11px; font-weight: 800; color: #5d4037; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        .battle-char-node .char-name { font-size: 12px; font-weight: 800; color: #5d4037; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
         
-        .battle-food-hub { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 0 2px; }
-        .food-icon { width: 38px; height: 38px; position: relative; animation: floatAnim 2s ease-in-out infinite; }
-        @keyframes floatAnim { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-        
-        .food-status-label { font-size: 11px; font-weight: 900; color: #e65100; margin-top: 4px; margin-bottom: 4px; text-align: center; }
-        
-        /* 점수판 대형화 및 차감 형태 UI */
-        .food-score-display { display: flex; width: 100%; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-        .score-box { display: flex; flex-direction: column; align-items: center; flex: 1; }
-        .score-box .label { font-size: 10px; font-weight: bold; color: #8d6e63; margin-bottom: 2px; }
-        .score-box .val { font-size: 18px; font-weight: 900; letter-spacing: -0.5px; }
-        .score-box.player .val { color: #1976d2; }
-        .score-box.opponent .val { color: #d32f2f; }
-        .score-vs { font-size: 12px; font-weight: 900; color: #a1887f; margin: 0 5px; margin-top: 10px; }
-
-        .food-track { width: 100%; height: 12px; background: #f48fb1; border-radius: 6px; overflow: hidden; position: relative; border: 1.5px solid #d7ccc8; }
-        .food-gauge-fill { height: 100%; width: 50%; background: #ffb74d; transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1); border-right: 2px solid #fff; }
+        .food-track { width: 100%; height: 10px; background: #e0e0e0; border-radius: 5px; overflow: hidden; position: relative; margin-top: 5px; border: 1.5px solid #d7ccc8; }
+        .food-gauge-fill { height: 100%; width: 50%; background: #ffb74d; transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1); }
 
         /* 보드 프레임 */
         #board-wrapper {
-            position: relative; z-index: 10; width: 100%; aspect-ratio: 1;
+            position: relative; z-index: 10; width: 100%; aspect-ratio: 1; flex: none;
             background: radial-gradient(circle, #8d6e63 0%, #4e342e 100%);
             border-radius: 18px; padding: 6px; box-shadow: inset 0 6px 12px rgba(0,0,0,0.5), 0 8px 16px rgba(0,0,0,0.3);
             touch-action: none; overflow: hidden;
@@ -220,7 +225,6 @@
             </div>
         </div>
 
-        <!-- 랭킹 영역 축소, 채널 버튼 확대 반영 -->
         <div class="channel-container">
             <button class="btn-channel beginner" onclick="enterChannel('초급 채널')">초급 채널 입장</button>
             <button class="btn-channel master" onclick="enterChannel('중급 채널')">중급 채널 입장</button>
@@ -250,7 +254,6 @@
 
         <h3 style="color:#795548; font-size:15px; margin-bottom:12px; font-weight:bold;">채널 멀티 플레이 대기실</h3>
         
-        <!-- 채팅창 위 중상단에 거대한 게임 시작 버튼 배치 -->
         <button class="btn-action" style="background:#e53935; width:100%; height: 75px; font-size: 24px; box-shadow:0 6px 12px rgba(229,57,53,0.3); margin-bottom: 15px;" onclick="goToInGame()">🚀 즉시 게임 시작 🚀</button>
 
         <div class="chat-panel">
@@ -276,35 +279,40 @@
         </div>
 
         <div class="battle-area">
-            <div class="battle-char-node player">
-                <div class="char-view" id="player-char-svg"></div>
-                <div class="char-name" id="ingame-id-label">나</div>
-            </div>
-            
-            <div class="battle-food-hub">
-                <div class="food-status-label" id="food-advantage-text">목표점수 1천만 점 깎기 대결!</div>
+            <!-- 새로운 누적 및 애니메이션 적용 점수판 -->
+            <div class="food-score-display">
+                <div class="score-box player">
+                    <span class="label">나의 누적 점수</span>
+                    <span class="val" id="player-score-val">0</span>
+                </div>
                 
-                <!-- 카운트다운 형태의 거대한 스코어 표시 구조 -->
-                <div class="food-score-display">
-                    <div class="score-box player">
-                        <span class="label">나의 남은 점수</span>
-                        <span class="val" id="player-score-val">10,000,000</span>
-                    </div>
-                    <div class="score-vs">VS</div>
-                    <div class="score-box opponent">
-                        <span class="label">적의 남은 점수</span>
-                        <span class="val" id="opponent-score-val">10,000,000</span>
+                <div class="vs-center">
+                    <div class="target-text">목표: 10,000,000</div>
+                    <div class="vs-food-container">
+                        <div class="food-icon-large">🍣</div>
+                        <div id="turn-score-popup" class="turn-score-popup">0</div>
                     </div>
                 </div>
 
-                <div class="food-track">
-                    <div class="food-gauge-fill" id="food-share-gauge"></div>
+                <div class="score-box opponent">
+                    <span class="label">적의 누적 점수</span>
+                    <span class="val" id="opponent-score-val">0</span>
                 </div>
             </div>
 
-            <div class="battle-char-node opponent">
-                <div class="char-view" id="opponent-char-svg"></div>
-                <div class="char-name">핑크냥</div>
+            <div class="food-track">
+                <div class="food-gauge-fill" id="food-share-gauge"></div>
+            </div>
+
+            <div class="battle-char-row" style="margin-top: 10px;">
+                <div class="battle-char-node player">
+                    <div class="char-view" id="player-char-svg"></div>
+                    <div class="char-name" id="ingame-id-label">나</div>
+                </div>
+                <div class="battle-char-node opponent">
+                    <div class="char-view" id="opponent-char-svg"></div>
+                    <div class="char-name">핑크냥</div>
+                </div>
             </div>
         </div>
 
@@ -316,7 +324,7 @@
     <!-- [5] 결과 씬 -->
     <div id="scene-result" class="scene">
         <div class="result-title" id="result-status">승리!</div>
-        <div class="result-subtitle" id="result-detail">상대보다 먼저 천만 점을 돌파했습니다!</div>
+        <div class="result-subtitle" id="result-detail">목표 점수를 먼저 달성했습니다!</div>
         <div class="score-row">최종 획득 점수: <span id="final-score-val">0</span> 점</div>
         
         <div class="result-btn-row">
@@ -450,10 +458,7 @@
             document.getElementById('scene-title').classList.remove('active');
             document.getElementById('scene-lobby01').classList.add('active');
 
-            setTimeout(() => {
-                overlay.style.opacity = "0";
-                overlay.style.pointerEvents = "none";
-            }, 400);
+            setTimeout(() => { overlay.style.opacity = "0"; overlay.style.pointerEvents = "none"; }, 400);
         }, 500);
     }
 
@@ -492,7 +497,7 @@
     // =================== 인게임 엔진 코어 ====================
     // =======================================================
     const BOARD_SIZE = 9;
-    const VICTORY_THRESHOLD = 10000000; // 천만 점 깎기 (HP 룰)
+    const VICTORY_THRESHOLD = 10000000; 
     
     let board = [];
     let movesLeft = 3;
@@ -500,6 +505,7 @@
     let secondsLeft = 15;
     let playerGrains = 0; 
     let opponentGrains = 0; 
+    let turnGrains = 0; // 플레이마다 중앙에 쌓이는 임시 점수
     let isAnimating = false; 
     let isPlayerTurn = true; 
 
@@ -519,25 +525,37 @@
     }
 
     function initGameEngine() {
-        movesLeft = 3; playerGrains = 0; opponentGrains = 0; secondsLeft = 15; isAnimating = false; isPlayerTurn = true;
+        movesLeft = 3; playerGrains = 0; opponentGrains = 0; turnGrains = 0; secondsLeft = 15; isAnimating = false; isPlayerTurn = true;
         updateInGameHUD(); buildBoard();
         announceTurn("내 턴 시작!"); resetTurnTimer();
     }
 
     function updateInGameHUD() {
         document.getElementById('move-counter').innerText = `MOVE 0${Math.max(0, movesLeft)}/03`;
-        
-        // 요구하신 '목표점수에서 차감하여 0이 되는 구조' 구현
-        let pRemain = Math.max(0, VICTORY_THRESHOLD - playerGrains);
-        let oRemain = Math.max(0, VICTORY_THRESHOLD - opponentGrains);
-
-        document.getElementById('player-score-val').innerText = pRemain.toLocaleString();
-        document.getElementById('opponent-score-val').innerText = oRemain.toLocaleString();
+        document.getElementById('player-score-val').innerText = playerGrains.toLocaleString();
+        document.getElementById('opponent-score-val').innerText = opponentGrains.toLocaleString();
 
         const totalEarned = playerGrains + opponentGrains;
         const bar = document.getElementById('food-share-gauge');
         if (totalEarned === 0) bar.style.width = `50%`;
         else bar.style.width = `${(playerGrains / totalEarned) * 100}%`;
+    }
+
+    // 타임아웃 발생 시 로직 (단순화 및 턴 강제 종료)
+    async function handleTurnTimeout() {
+        clearInterval(inGameTimer);
+        announceTurn("시간 초과! 턴 종료");
+        isAnimating = true;
+        await finalizeTurnPoints();
+        isAnimating = false;
+        
+        if (isPlayerTurn) {
+            isPlayerTurn = false;
+            setTimeout(runOpponentTurnSimulation, 1300);
+        } else {
+            isPlayerTurn = true; movesLeft = 3;
+            announceTurn("내 턴 시작!"); resetTurnTimer(); updateInGameHUD();
+        }
     }
 
     function resetTurnTimer() {
@@ -546,7 +564,7 @@
         inGameTimer = setInterval(() => {
             if (isAnimating || !isPlayerTurn) return; 
             secondsLeft -= 0.1;
-            if (secondsLeft <= 0) { clearInterval(inGameTimer); announceTurn("시간 초과! 턴 종료"); setTimeout(runOpponentTurnSimulation, 1300); } 
+            if (secondsLeft <= 0) { handleTurnTimeout(); } 
             else bar.style.width = `${(secondsLeft / 15) * 100}%`;
         }, 100);
     }
@@ -629,26 +647,20 @@
         await new Promise(res => setTimeout(res, 250));
         b1.elem.style.transition = 'none'; b2.elem.style.transition = 'none';
 
-        // [핵심 변경점] 스왑 시 매치를 우선 검사하고, 이후 아이템을 격발합니다.
         if (isItemA || isItemB) {
+            if (isPlayerTurn) { movesLeft--; resetTurnTimer(); } updateInGameHUD();
             if (isItemA && isItemB) {
-                // 아이템 간 결합
                 b1.elem.style.transform = "translate(0px, 0px)"; b2.elem.style.transform = "translate(0px, 0px)";
                 soundCtrl.playSFX('item_trigger');
                 await executeItemCombination(r1, c1, r2, c2); 
             } else {
-                // 하나만 아이템일 경우
                 swapBoardData(r1, c1, r2, c2);
                 b1.elem.style.transform = "translate(0px, 0px)"; b2.elem.style.transform = "translate(0px, 0px)";
                 b1.elem.style.transition = ''; b2.elem.style.transition = '';
 
-                // 1. 매치 세트 우선 검사
                 const matchSets = findMatchSets();
-                if (matchSets.length > 0) {
-                    await processMarkingPipeline(matchSets, { r: r2, c: c2 });
-                }
+                if (matchSets.length > 0) await processMarkingPipeline(matchSets, { r: r2, c: c2 });
 
-                // 2. 파이프라인(중력 연산 등) 후 살아있는 스왑 타겟(아이템) 추적 후 격발
                 let itemElem = isItemA ? b1.elem : b2.elem;
                 let itemFoundR = -1, itemFoundC = -1;
                 for(let r=0; r<BOARD_SIZE; r++) {
@@ -656,28 +668,21 @@
                         if(board[r][c].elem === itemElem) { itemFoundR = r; itemFoundC = c; break; }
                     }
                 }
-
-                // 추적된 아이템이 연쇄 폭발로 소실되지 않았다면 격발 처리
                 if (itemFoundR !== -1 && typeof board[itemFoundR][itemFoundC].type === 'string') {
                     await processItemTrigger(itemFoundR, itemFoundC);
                 }
             }
-            
-            if (isPlayerTurn) movesLeft--; updateInGameHUD();
             isAnimating = false; checkTurnEndConditions(); return;
         }
 
-        // 일반 블록 스왑 로직
         swapBoardData(r1, c1, r2, c2);
         b1.elem.style.transform = "translate(0px, 0px)"; b2.elem.style.transform = "translate(0px, 0px)";
-        
         board[0][0].elem.offsetHeight;
         b1.elem.style.transition = ''; b2.elem.style.transition = '';
 
         const matchSets = findMatchSets();
         if (matchSets.length > 0) {
-            if (isPlayerTurn) movesLeft--;
-            updateInGameHUD();
+            if (isPlayerTurn) { movesLeft--; resetTurnTimer(); } updateInGameHUD();
             await processMarkingPipeline(matchSets, { r: r2, c: c2 });
         } else {
             b1.elem.style.transition = 'transform 0.25s ease'; b2.elem.style.transition = 'transform 0.25s ease';
@@ -689,7 +694,6 @@
             b1.elem.style.transition = 'none'; b2.elem.style.transition = 'none';
             swapBoardData(r1, c1, r2, c2);
             b1.elem.style.transform = "translate(0px, 0px)"; b2.elem.style.transform = "translate(0px, 0px)";
-            
             board[0][0].elem.offsetHeight;
             b1.elem.style.transition = ''; b2.elem.style.transition = '';
         }
@@ -705,10 +709,30 @@
         bindHybridInputEvents(b1.elem, r1, c1); bindHybridInputEvents(b2.elem, r2, c2);
     }
 
-    function checkTurnEndConditions() {
-        if (playerGrains >= VICTORY_THRESHOLD) { endMatchGame(true); return; }
-        if (opponentGrains >= VICTORY_THRESHOLD) { endMatchGame(false); return; }
-        if (isPlayerTurn && movesLeft <= 0 && !isAnimating) {
+    // 중앙 누적 점수를 각각의 진영으로 날려보내는 애니메이션
+    async function finalizeTurnPoints() {
+        if (turnGrains > 0) {
+            const popup = document.getElementById('turn-score-popup');
+            if (isPlayerTurn) {
+                popup.className = 'turn-score-popup fly-p1';
+                await new Promise(res => setTimeout(res, 500));
+                playerGrains += turnGrains;
+            } else {
+                popup.className = 'turn-score-popup fly-p2';
+                await new Promise(res => setTimeout(res, 500));
+                opponentGrains += turnGrains;
+            }
+            turnGrains = 0; popup.className = 'turn-score-popup'; updateInGameHUD();
+        }
+    }
+
+    async function checkTurnEndConditions() {
+        if (isAnimating) return;
+        
+        if (isPlayerTurn && movesLeft <= 0) {
+            isAnimating = true; await finalizeTurnPoints(); isAnimating = false;
+            if (playerGrains >= VICTORY_THRESHOLD) { endMatchGame(true); return; }
+            
             isPlayerTurn = false; announceTurn("상대 턴 시작!"); setTimeout(runOpponentTurnSimulation, 1400); 
         }
     }
@@ -718,7 +742,7 @@
         document.getElementById('scene-ingame').classList.remove('active');
         document.getElementById('scene-result').classList.add('active');
         document.getElementById('result-status').innerText = isWin ? "승리!" : "패배";
-        document.getElementById('result-detail').innerText = isWin ? "상대보다 먼저 목표 점수를 전부 깎아냈습니다!" : "상대방이 먼저 목표 점수를 깎아냈습니다.";
+        document.getElementById('result-detail').innerText = isWin ? "목표 점수를 먼저 달성했습니다!" : "상대방이 먼저 목표 점수를 달성했습니다.";
         document.getElementById('final-score-val').innerText = isWin ? playerGrains.toLocaleString() : opponentGrains.toLocaleString();
     }
 
@@ -728,24 +752,22 @@
     }
 
     async function runOpponentTurnSimulation() {
-        isAnimating = true; updateInGameHUD();
-        let aiMoves = 3;
-
-        while (aiMoves > 0) {
-            if (opponentGrains >= VICTORY_THRESHOLD || playerGrains >= VICTORY_THRESHOLD) break;
+        isAnimating = true; movesLeft = 3; updateInGameHUD();
+        
+        while (movesLeft > 0) {
+            if (opponentGrains + turnGrains >= VICTORY_THRESHOLD) break;
             await new Promise(res => setTimeout(res, 800)); 
             let foundMove = false;
 
             for (let r = 0; r < BOARD_SIZE && !foundMove; r++) {
                 for (let c = 0; c < BOARD_SIZE && !foundMove; c++) {
                     if (typeof board[r][c].type === 'string' && board[r][c].type.startsWith('it')) {
-                        board[r][c].elem.style.boxShadow = '0 0 15px #f48fb1, inset 0 0 15px #f48fb1';
-                        board[r][c].elem.style.transform = 'scale(1.1)';
+                        board[r][c].elem.style.boxShadow = '0 0 15px #f48fb1, inset 0 0 15px #f48fb1'; board[r][c].elem.style.transform = 'scale(1.1)';
                         await new Promise(res => setTimeout(res, 400));
                         board[r][c].elem.style.boxShadow = ''; board[r][c].elem.style.transform = 'scale(1)';
                         
-                        await processItemTrigger(r, c);
-                        foundMove = true;
+                        movesLeft--; resetTurnTimer(); updateInGameHUD();
+                        await processItemTrigger(r, c); foundMove = true;
                     }
                 }
             }
@@ -763,13 +785,12 @@
                             board[r][c].type = t1; board[nr][nc].type = t2;
 
                             if (sets.length > 0) {
-                                board[r][c].elem.style.boxShadow = '0 0 15px #f48fb1';
-                                board[nr][nc].elem.style.boxShadow = '0 0 15px #f48fb1';
+                                board[r][c].elem.style.boxShadow = '0 0 15px #f48fb1'; board[nr][nc].elem.style.boxShadow = '0 0 15px #f48fb1';
                                 await new Promise(res => setTimeout(res, 400)); 
                                 board[r][c].elem.style.boxShadow = ''; board[nr][nc].elem.style.boxShadow = '';
                                 
-                                await executeSwapWithAnimation(r, c, nr, nc);
-                                foundMove = true;
+                                movesLeft--; resetTurnTimer(); updateInGameHUD();
+                                await executeSwapWithAnimation(r, c, nr, nc); foundMove = true;
                             }
                         }
                     }
@@ -777,23 +798,23 @@
             }
 
             if (!foundMove) {
-                let r = Math.floor(Math.random() * (BOARD_SIZE - 1));
-                let c = Math.floor(Math.random() * (BOARD_SIZE - 1));
-                board[r][c].elem.style.boxShadow = '0 0 15px #f48fb1';
-                board[r][c+1].elem.style.boxShadow = '0 0 15px #f48fb1';
+                let r = Math.floor(Math.random() * (BOARD_SIZE - 1)); let c = Math.floor(Math.random() * (BOARD_SIZE - 1));
+                board[r][c].elem.style.boxShadow = '0 0 15px #f48fb1'; board[r][c+1].elem.style.boxShadow = '0 0 15px #f48fb1';
                 await new Promise(res => setTimeout(res, 400));
                 board[r][c].elem.style.boxShadow = ''; board[r][c+1].elem.style.boxShadow = '';
                 
+                movesLeft--; resetTurnTimer(); updateInGameHUD();
                 await executeSwapWithAnimation(r, c, r, c + 1);
             }
-            aiMoves--;
         }
 
-        if (opponentGrains < VICTORY_THRESHOLD && playerGrains < VICTORY_THRESHOLD) {
+        isAnimating = true; await finalizeTurnPoints(); isAnimating = false;
+
+        if (opponentGrains >= VICTORY_THRESHOLD) { endMatchGame(false); return; }
+        if (playerGrains < VICTORY_THRESHOLD) {
             isPlayerTurn = true; movesLeft = 3;
             announceTurn("내 턴 시작!"); resetTurnTimer(); updateInGameHUD();
         }
-        isAnimating = false; checkTurnEndConditions();
     }
 
     function findMatchSets() {
@@ -918,8 +939,16 @@
     }
 
     function gainFoodGrains(amount) {
-        if (isPlayerTurn) playerGrains += amount; else opponentGrains += amount;
-        updateInGameHUD();
+        turnGrains += amount; updateInGameHUD();
+        
+        const popup = document.getElementById('turn-score-popup');
+        popup.innerText = `+${turnGrains.toLocaleString()}`;
+        popup.classList.add('show'); popup.classList.remove('grow');
+        void popup.offsetWidth; popup.classList.add('grow');
+        setTimeout(() => popup.classList.remove('grow'), 200);
+
+        if (isPlayerTurn && playerGrains + turnGrains >= VICTORY_THRESHOLD) { endMatchGame(true); }
+        if (!isPlayerTurn && opponentGrains + turnGrains >= VICTORY_THRESHOLD) { endMatchGame(false); }
     }
 
     function triggerPremiumMatchEffect() {
@@ -942,8 +971,7 @@
                     board[targetR][c].type = b.type;
                     const targetElem = board[targetR][c].elem;
                     targetElem.className = `block-unit block-t-${b.type}`; targetElem.innerHTML = CAT_SVGs[b.type];
-                    targetElem.style.display = 'flex';
-                    b.type = 0; b.elem.style.display = 'none';
+                    targetElem.style.display = 'flex'; b.type = 0; b.elem.style.display = 'none';
                     targetElem.style.transition = 'none'; targetElem.style.transform = `translateY(-${emptyCount * 100}%)`;
                     bindHybridInputEvents(targetElem, targetR, c); gravityAnimations.push(targetElem);
                 }
@@ -1044,7 +1072,10 @@
 
     async function triggerItemDirectly(r, c) {
         if (isAnimating || (!isPlayerTurn && movesLeft <= 0)) return;
-        isAnimating = true; await processItemTrigger(r, c); isAnimating = false; checkTurnEndConditions();
+        isAnimating = true; 
+        if (isPlayerTurn) { movesLeft--; resetTurnTimer(); updateInGameHUD(); }
+        await processItemTrigger(r, c); 
+        isAnimating = false; checkTurnEndConditions();
     }
 
     async function fireTracingFish(startR, startC) {
